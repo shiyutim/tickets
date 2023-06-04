@@ -4,7 +4,7 @@
 
 ## 下载
 
-目前需要自己编译一下，后续会提供可下载的版本。自己编译需要 rust node 环境。运行 `yarn tauri build`即可，生成的
+目前需要自己编译一下，后续会提供可下载的版本。自己编译需要 rust node 环境。运行 `yarn tauri build`即可，生成的程序在 src-tauri/target/release 下。
 
 ## 使用
 
