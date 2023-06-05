@@ -1,5 +1,5 @@
 <script setup lang="js">
-import { ref, reactive, onMounted } from "vue";
+import { ref, reactive, onMounted, watch } from "vue";
 import {
     getSign,
     loadBaxiaScript,
@@ -13,6 +13,7 @@ import {
     joinMsg,
     encode,
 } from "../../utils/dm/index.js";
+import { getQueryString } from '../../utils/common'
 import { invoke } from "@tauri-apps/api/tauri";
 import { Message } from "@arco-design/web-vue";
 
@@ -33,10 +34,21 @@ onMounted(() => {
 const form = reactive({
     token: "", // 获取 sign 使用
     cookie: "",
+    url: "",
     itemId: "",
     num: "1",
     retry: "2",
 });
+
+watch(() => form.url, (url) => {
+    const search = url.split("html")[1]
+    const itemId = getQueryString('itemId', search)
+    if(itemId) {
+        form.itemId = itemId;
+    } else {
+        Message.warning("此url无法获取 itemId")
+    }
+})
 
 const handleSubmit = data => {
     if (data.errors) {
@@ -50,17 +62,16 @@ const productInfo = ref(null);
 
 async function getProductInfo() {
     // 根据 cookie 解析 token，用来生成 t 和 sign
-    form.token = getToken(form.cookie);
+    form.token = getToken(form.cookie.trim());
     const data = `{"itemId":"${form.itemId}","bizCode":"ali.china.damai","scenario":"itemsku","exParams":"{\\"dataType\\":4,\\"dataId\\":\\"\\",\\"privilegeActId\\":\\"\\"}","dmChannel":"damai@damaih5_h5"}`;
     const [t, sign] = getSign(data, form.token);
-    console.log(form.cookie)
 
     try {
         const res = await invoke("get_product_info", {
             t,
             sign,
             itemid: form.itemId,
-            cookie: form.cookie,
+            cookie: form.cookie.trim(),
         });
 
         const parseData = JSON.parse(res);
@@ -89,6 +100,7 @@ async function getProductInfo() {
     }
 }
 
+// sku列表，获取票档等信息
 const skuInfo = reactive({});
 
 // 当前高亮的 票档
@@ -108,7 +120,7 @@ async function getSkuInfo(item) {
             t,
             sign,
             itemid: form.itemId,
-            cookie: form.cookie,
+            cookie: form.cookie.trim(),
             dataid: item.performId,
         });
 
@@ -132,6 +144,7 @@ async function getSkuInfo(item) {
     }
 }
 
+// 对应票档的信息（对应*订单*详情页）
 const orderDetail = ref(null);
 async function skuHandle(item) {
     isCanClick.value = false;
@@ -145,7 +158,7 @@ async function skuHandle(item) {
         const res = await invoke("get_ticket_detail", {
             t,
             sign,
-            cookie: form.cookie,
+            cookie: form.cookie.trim(),
             data,
             ua,
             umidtoken,
@@ -170,6 +183,7 @@ async function skuHandle(item) {
     }
 }
 
+// 下订单（对应提交订单按钮）
 async function createOrder(data, submitref) {
     const [t, sign] = getSign(data, form.token);
     const [ua, umidtoken] = getHeaderUaAndUmidtoken();
@@ -181,7 +195,7 @@ async function createOrder(data, submitref) {
 
     try {
         const res = await invoke("create_order", {
-            cookie: form.cookie,
+            cookie: form.cookie.trim(),
             t,
             sign,
             data: lastData,
@@ -245,6 +259,14 @@ async function buy() {
                         placeholder="请输入 cookie"
                         allow-clear
                     />
+                </a-form-item>
+
+                <a-form-item field="url" label="url">
+                    <a-input
+                        v-model="form.url"
+                        placeholder="请输入商品详情页url"
+                    >
+                    </a-input>
                 </a-form-item>
 
                 <a-form-item
@@ -442,7 +464,6 @@ async function buy() {
             color: #ff0000;
         }
     }
-
     .active-sku {
         background: #eee;
     }
