@@ -88,6 +88,9 @@ async function getProductInfo() {
                     if (result.itemBuyBtn.btnStatus === "303") {
                         Message.warning(`商品已下架`);
                         return;
+                    } else if(result.itemBuyBtn.btnStatus === "100") {
+                        Message.error(joinMsg([result.itemBuyBtn.btnText, result.itemBuyBtn.btnTips]))
+                        return
                     }
                     productInfo.value = result;
                 }

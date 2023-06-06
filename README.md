@@ -1,10 +1,14 @@
 # 抢票软件（大麦）
 
-一个基于 tauri + rust + vue 构建的抢票软件，目前只支持大麦平台（默认）。后续会支持其他平台。
+一个基于 tauri + rust + vue 构建的抢票软件，全部调用大麦的接口。目前只支持大麦平台（默认）。后续会支持其他平台。
+
+本项目只用来学习 tauri、rust 等，切勿进行盈利，所造成的后果与本人无关。
 
 ## 下载
 
-目前需要自己编译一下，后续会提供可下载的版本。自己编译需要 rust node 环境。
+[点击查看下载页面](https://github.com/shiyutim/tickets/releases)，下载对应的版本即可。
+
+自己编译（需要 rust、node 环境）：
 
 1. `yarn` 安装依赖
 2. `yarn tauri build` 打包程序。生成的程序在 src-tauri/target/release 下。
