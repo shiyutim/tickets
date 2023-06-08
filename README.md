@@ -8,10 +8,12 @@
 
 [点击查看下载页面](https://github.com/shiyutim/tickets/releases)，下载对应的版本即可。
 
-自己编译（需要 rust、node 环境）：
+## 编译（需要 rust、node 环境）：
 
-1. `yarn` 安装依赖
-2. `yarn tauri build` 打包程序。生成的程序在 src-tauri/target/release 下。
+1. 安装 rust `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh` [rust 官网](https://www.rust-lang.org/tools/install)
+2. 安装 node [node 官网](https://nodejs.org/en)
+3. 运行 `yarn` 安装依赖
+4. 运行 `yarn tauri build` 打包程序。生成的程序在 src-tauri/target/release 下。
 
 ## 使用
 
@@ -28,15 +30,12 @@ F12 打开控制台，在 network 下，找到对应的 http 请求，然后找�
 
 ## 注意事项
 
-1. 需要在[大麦移动端](https://m.damai.cn/damai/home/index.html)进入对应的商品页面，如果支持购买，则此软件支持。
-2. **目前购买票数需要跟实名观演人个数一致**，后续会优化
-3. 提示 session 失效等，需要更换 cookie（不一定需要重新登录，重新进入大麦页面获取即可）
-4. 尽量不要多次重复尝试下订单，因为阿里系产品有风控，可能会限制账号或 ip 等。如果多次尝试导致出现账号无法登录的情况，切换个浏览器即可。
-5. **不支持选座**
-6. FAIL_SYS_USER_VALIDATE 类似的提示可能当前浏览器已经被限制，目前需要切换个浏览器。
+1. 提示 session 失效等，需要更换 cookie（不一定需要重新登录，重新进入大麦页面获取即可）
+2. 尽量不要多次重复尝试下订单，因为阿里系产品有风控，可能会限制账号或 ip 等。如果多次尝试导致出现账号无法登录的情况，切换个浏览器即可。
+3. **不支持选座**
+4. FAIL_SYS_USER_VALIDATE 类似的提示可能当前浏览器已经被限制，目前需要切换个浏览器。
 
 ## TODO
 
-1. 可选择观演人
-2. 选座支持
-3. 其他平台支持
+1. 选座支持
+2. 其他平台支持

@@ -8,6 +8,8 @@ import {
 import { Message } from "@arco-design/web-vue";
 import Form from '../components/dm/Form.vue'
 import Product from '../components/dm/Product.vue'
+import VisitUser from '../components/dm/VisitUser.vue'
+import BuyHistory from "../components/dm/BuyHistory.vue";
 
 onMounted(() => {
     // 加载凭证脚本
@@ -23,26 +25,20 @@ onMounted(() => {
     }, loadBaxiaTime);
 });
 
-// 储存的信息
-const form = reactive({});
 
 // 商品组件引用
 const productRef = ref(null)
 
-// 获取商品信息
-const handleSubmit = async  (data) => {
-    if (data.errors) {
-        return;
-    }
+// 观演人引用
+const visitUserRef = ref(null)
 
-    for(const [key, val] of Object.entries(data.values)) {
-        form[key] = val
-    }
+// 获取商品信息
+const handleSubmit = async () => {
     // await getProductInfo();
     // if(productInfo.value) {
         formActive.value = []
     // }
-    productRef.value.getProductInfo(form)
+    productRef.value.getProductInfo()
 };
 
 // 展示收起逻辑
@@ -66,6 +62,8 @@ function collapseChange() {
                 <Form :handleSubmit="handleSubmit"></Form>
             </a-collapse-item>
         </a-collapse>
+        <BuyHistory></BuyHistory>
+        <VisitUser ref="visitUserRef"></VisitUser>
         <product ref="productRef"></product>
     </div>
 </template>

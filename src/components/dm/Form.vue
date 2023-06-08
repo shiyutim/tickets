@@ -1,7 +1,13 @@
 <script setup lang="js">
-import { reactive, ref, watch } from 'vue';
+import { reactive, watch } from 'vue';
 import { getQueryString } from '../../../utils/common';
-import { Message, Notification } from "@arco-design/web-vue";
+import { Message } from "@arco-design/web-vue";
+import { useStore } from 'vuex';
+import {
+    getToken,
+} from "../../../utils/dm/index.js";
+
+const store = useStore();
 
 const form = reactive({
     cookie: "",
@@ -27,7 +33,17 @@ const props = defineProps({
 })
 
 function handleSubmit(e) {
-    props.handleSubmit(e)
+    if(e.errors) {
+        return
+    }
+
+    store.commit('addForm', {
+        ...e.values,
+        cookie: e.values.cookie.trim(),
+        // 根据 cookie 解析 token，用来生成 t 和 sign
+        token:  getToken(e.values.cookie.trim())
+    })
+    props.handleSubmit()
 }
 </script>
 
@@ -78,7 +94,7 @@ function handleSubmit(e) {
             </a-form-item>
 
             <a-form-item>
-                <a-button html-type="submit">获取商品信息</a-button>
+                <a-button html-type="submit">确定</a-button>
             </a-form-item>
         </a-form>
     </section>

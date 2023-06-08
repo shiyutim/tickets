@@ -340,7 +340,7 @@ export function joinMsg(list) {
     return list;
 }
 
-export function combinationOrderParams(data) {
+export function combinationOrderParams(data, selectUserList) {
     const res = {
         params: {
             // data: {},
@@ -376,18 +376,20 @@ export function combinationOrderParams(data) {
             if (value.tag === "dmViewer") {
                 let formatValue = value;
                 // 说明需要选择观演人
-                // TODO 根据选择处理
                 if (Array.isArray(formatValue.fields.viewerList)) {
                     formatValue.fields.selectedNum =
                         formatValue.fields.viewerList.length;
-
                     formatValue.fields.viewerList =
                         formatValue.fields.viewerList.map((item) => {
-                            return {
+                            let current = {
                                 ...item,
                                 isDisabled: false,
-                                isUsed: true,
                             };
+                            current.isUsed = selectUserList.includes(
+                                item.maskedIdentityNo
+                            );
+
+                            return current;
                         });
                 }
                 localData[key] = formatValue;

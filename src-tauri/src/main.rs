@@ -205,6 +205,45 @@ async fn create_order_res(
     Ok(res)
 }
 
+#[tauri::command]
+fn get_user_list(t: usize, sign: &str, cookie: &str, data: &str) -> String {
+    let res = get_user_list_res(t, sign, cookie, data);
+
+    match res {
+        Err(e) => String::from("数据观演人信息错误"),
+        Ok(data) => data,
+    }
+}
+
+#[tokio::main]
+async fn get_user_list_res(
+    t: usize,
+    sign: &str,
+    cookie: &str,
+    data: &str,
+) -> Result<String, Box<dyn Error>> {
+    let url = format!("https://mtop.damai.cn/h5/mtop.damai.wireless.user.customerlist.get/2.0/?jsv=2.7.2&appKey=12574478&t={}&sign={}&type=originaljson&dataType=json&v=2.0&H5Request=true&AntiCreep=true&AntiFlood=true&api=mtop.damai.wireless.user.customerlist.get&method=GET&hasToast=true&needTbLogin=true&data={}", t, sign, data);
+
+    let mut headers = get_common_headers();
+    headers.insert(
+        "content-type",
+        "application/x-www-form-urlencoded".parse().unwrap(),
+    );
+    headers.insert(header::COOKIE, cookie.parse().unwrap());
+
+    let client = reqwest::Client::new();
+    let res = client
+        .get(url)
+        .headers(headers)
+        .timeout(Duration::from_secs(3))
+        .send()
+        .await?
+        .text()
+        .await?;
+
+    Ok(res)
+}
+
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
@@ -212,6 +251,7 @@ fn main() {
             get_ticket_list,
             get_ticket_detail,
             create_order,
+            get_user_list,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

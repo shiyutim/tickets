@@ -1,9 +1,8 @@
 <script setup lang="js">
-import { ref, reactive} from 'vue'
+import { ref, reactive, computed } from 'vue'
 import {
     getSign,
     getHeaderUaAndUmidtoken,
-    getToken,
     commonTip,
     isSuccess,
     combinationOrderParams,
@@ -13,6 +12,9 @@ import {
 import { invoke } from "@tauri-apps/api/tauri";
 import { Message, Notification } from "@arco-design/web-vue";
 import dayjs from 'dayjs';
+import { useStore } from 'vuex'
+
+const store = useStore()
 
 const productInfo = ref(null);
 
@@ -22,24 +24,18 @@ const isPreSell = ref(false)
 const isShowCountDown = ref(false);
 const countDownVal = ref(0);
 
-const form = reactive({})
-
-async function getProductInfo(forms) {
-    for(const [key, val] of Object.entries(forms)) {
-        form[key] = val
-    }
-
-    // 根据 cookie 解析 token，用来生成 t 和 sign
-    form.token = getToken(form.cookie.trim());
-    const data = `{"itemId":"${form.itemId}","bizCode":"ali.china.damai","scenario":"itemsku","exParams":"{\\"dataType\\":4,\\"dataId\\":\\"\\",\\"privilegeActId\\":\\"\\"}","dmChannel":"damai@damaih5_h5"}`;
-    const [t, sign] = getSign(data, form.token);
+// 从 store 获取 form
+const form = computed(() => store.state.form)
+async function getProductInfo() {
+    const data = `{"itemId":"${form.value.itemId}","bizCode":"ali.china.damai","scenario":"itemsku","exParams":"{\\"dataType\\":4,\\"dataId\\":\\"\\",\\"privilegeActId\\":\\"\\"}","dmChannel":"damai@damaih5_h5"}`;
+    const [t, sign] = getSign(data, form.value.token);
 
     try {
         const res = await invoke("get_product_info", {
             t,
             sign,
-            itemid: form.itemId,
-            cookie: form.cookie.trim(),
+            itemid: form.value.itemId,
+            cookie: form.value.cookie.trim(),
         });
 
         const parseData = JSON.parse(res);
@@ -92,15 +88,15 @@ async function getSkuInfo(item) {
         return;
     }
 
-    const data = `{"itemId":"${form.itemId}","bizCode":"ali.china.damai","scenario":"itemsku","exParams":"{\\"dataType\\":2,\\"dataId\\":\\"${item.performId}\\",\\"privilegeActId\\":\\"\\"}","dmChannel":"damai@damaih5_h5"}`;
-    const [t, sign] = getSign(data, form.token);
+    const data = `{"itemId":"${form.value.itemId}","bizCode":"ali.china.damai","scenario":"itemsku","exParams":"{\\"dataType\\":2,\\"dataId\\":\\"${item.performId}\\",\\"privilegeActId\\":\\"\\"}","dmChannel":"damai@damaih5_h5"}`;
+    const [t, sign] = getSign(data, form.value.token);
 
     try {
         const res = await invoke("get_ticket_list", {
             t,
             sign,
-            itemid: form.itemId,
-            cookie: form.cookie.trim(),
+            itemid: form.value.itemId,
+            cookie: form.value.cookie,
             dataid: item.performId,
         });
 
@@ -130,16 +126,16 @@ function saveSku(item) {
 
 // 获取订单详情
 async function getOrderDetail(item) {
-    const data = `{"buyNow":true,"exParams":"{\\"channel\\":\\"damai_app\\",\\"damai\\":\\"1\\",\\"umpChannel\\":\\"100031004\\",\\"subChannel\\":\\"damai@damaih5_h5\\",\\"atomSplit\\":1,\\"serviceVersion\\":\\"2.0.0\\",\\"customerType\\":\\"default\\"}","buyParam":"${item.itemId}_${form.num}_${item.skuId}","dmChannel":"damai@damaih5_h5"}`;
+    const data = `{"buyNow":true,"exParams":"{\\"channel\\":\\"damai_app\\",\\"damai\\":\\"1\\",\\"umpChannel\\":\\"100031004\\",\\"subChannel\\":\\"damai@damaih5_h5\\",\\"atomSplit\\":1,\\"serviceVersion\\":\\"2.0.0\\",\\"customerType\\":\\"default\\"}","buyParam":"${item.itemId}_${form.value.num}_${item.skuId}","dmChannel":"damai@damaih5_h5"}`;
 
-    const [t, sign] = getSign(data, form.token);
+    const [t, sign] = getSign(data, form.value.token);
     const [ua, umidtoken] = getHeaderUaAndUmidtoken();
 
     try {
         const res = await invoke("get_ticket_detail", {
             t,
             sign,
-            cookie: form.cookie.trim(),
+            cookie: form.value.cookie,
             data,
             ua,
             umidtoken,
@@ -168,7 +164,7 @@ async function getOrderDetail(item) {
 const currentRetryCount = ref(0)
 // 下订单（对应提交订单按钮）
 async function createOrder(data, submitref) {
-    const [t, sign] = getSign(data, form.token);
+    const [t, sign] = getSign(data, form.value.token);
     const [ua, umidtoken] = getHeaderUaAndUmidtoken();
 
     let lastData = encode({
@@ -176,13 +172,15 @@ async function createOrder(data, submitref) {
     })
     lastData = `${lastData}&bx-ua=${ua}&bx-umidtoken=${umidtoken}`;
     try {
+        let startTime = Date.now();
         const res = await invoke("create_order", {
-            cookie: form.cookie.trim(),
+            cookie: form.value.cookie,
             t,
             sign,
             data: lastData,
             submitref,
         });
+        let endTime = Date.now();
         const parseData = JSON.parse(res);
         if (Array.isArray(parseData.ret) && parseData.ret.length) {
             const message = parseData.ret[0];
@@ -190,10 +188,17 @@ async function createOrder(data, submitref) {
             commonTip(message);
 
             if (isSuccess(message)) {
-                Message.success("购买成功!!!，请在订单页进行支付");
+                const msg = "购买成功!!!，请在订单页进行支付"
+                saveHistory(startTime, endTime, msg)
+                Message.success(msg);
             } else {
-                Message.error(joinMsg(["error", ...parseData.ret]));
-
+                console.log('1')
+                const msg = joinMsg(["error", ...parseData.ret])
+                console.log('2', msg)
+                saveHistory(startTime, endTime, msg)
+                console.log('3')
+                Message.error(msg);
+                console.log('enter')
                 // 只要没有抢票成功，就重新创建订单
                 if(currentRetryCount.value) {
                     currentRetryCount.value =  currentRetryCount.value - 1
@@ -205,8 +210,28 @@ async function createOrder(data, submitref) {
             }
         }
     } catch (e) {
+        console.log(e)
         Message.error(joinMsg(["订单发送失败，请重试", JSON.stringify(e)]))
     }
+}
+
+function saveHistory(start, end, msg) {
+    const data = {
+        startTime: start,
+        endTime: end,
+        diff: end - start,
+        message: msg,
+    }
+
+    store.commit('pushBuyHistory', data)
+
+    let storageData = localStorage.getItem('buyHistory')
+    storageData = storageData ? JSON.parse(storageData) : []
+
+    localStorage.setItem('buyHistory', JSON.stringify([
+        ...storageData,
+        data
+    ]))
 }
 
 function getSecret(data) {
@@ -217,20 +242,30 @@ function getSecret(data) {
 
 async function buy() {
     // 点击购买，就 重置 重试次数
-    currentRetryCount.value = Number(form.retry) - 1
+    currentRetryCount.value = Number(form.value.retry) - 1
 
+    // 检查票档是否选择
     if(!activeSku.value) {
-        Message.error("请选择票档");
+        Message.warning("请选择票档");
         return
     }
+
+    // 检查是否选择观演人
+    if(!selectVisitUserList.value.length) {
+        Message.warning("请选择观演人")
+        return
+    }
+
     // 对应票档的信息（对应*订单*详情页）
     getOrderDetail(activeSku.value)
 }
 
+const selectVisitUserList = computed(() => store.state.dm.selectVisitUserList)
 function otherHandle(orderDetail) {
     const confirmParams = JSON.stringify(
-        combinationOrderParams(orderDetail)
+        combinationOrderParams(orderDetail, selectVisitUserList.value)
     );
+
     const submitref = getSecret(orderDetail);
     createOrder(confirmParams, submitref);
 }
