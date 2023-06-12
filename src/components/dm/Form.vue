@@ -70,21 +70,23 @@ function initVisitUser() {
     const data = getStore()
     if(Array.isArray(data) && data.length) {
         store.commit("ADD_VISIT_USER", data)
-    } else {
-        getVisitUser()
     }
 }
 
 const isLoading = ref(false)
 
 async function getVisitUser() {
+    if(!form.cookie) {
+        Message.warning("请输入cookie")
+        return
+    }
     const data = `{"customerType":"default","dmChannel":"damai@damaih5_h5"}`;
-    const [t, sign] = getSign(data, form.token);
+    const [t, sign] = getSign(data, getToken(form.cookie.trim()));
     try {
         const res = await invoke("get_user_list", {
             t,
             sign,
-            cookie: form.cookie,
+            cookie: form.cookie.trim(),
             data,
         })
 
@@ -174,7 +176,6 @@ function userChange(valList) {
                 <template #extra>
                     <div>需要与选择实名信息一致</div>
                 </template>
-                <!-- <a-input v-model="form.num" placeholder="请输入购买数量..." /> -->
                 <a-input-number
                     v-model="form.num"
                     placeholder="请输入购买数量..."
@@ -183,7 +184,6 @@ function userChange(valList) {
                 />
             </a-form-item>
             <a-form-item field="selectVisitUserList" label="观演人" required>
-                <!-- <a-input v-model="form.num" placeholder="请输入购买数量..." /> -->
                 <a-checkbox-group
                     v-model="form.selectVisitUserList"
                     @change="userChange"
@@ -237,9 +237,7 @@ function userChange(valList) {
                 <a-input-number
                     v-model="form.retry"
                     placeholder="请输入重试次数"
-                    :min="1"
-                    :max="3"
-                    model-event="input"
+                    :max="4"
                 />
             </a-form-item>
 

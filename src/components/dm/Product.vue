@@ -67,12 +67,17 @@ async function getProductInfo() {
                         Message.error(joinMsg([result.itemBuyBtn.btnText, result.itemBuyBtn.btnTips]))
                         return
                     } else if(result.itemBuyBtn.btnStatus === "106") {
-                        // console.log('result', result)
                         // 即将开抢
                         // TODO bug fix
                         countDownVal.value = dayjs(result.itemBasicInfo.sellingStartTime).valueOf();
-                        isPreSell.value = true
-                        isShowCountDown.value = true;
+
+                        // 如果预售的商品开售，则直接显示购买
+                        if(countDownVal.value > Date.now()) {
+                            isPreSell.value = true
+                            isShowCountDown.value = true;
+                        } else {
+                            isPreSell.value = false
+                        }
                     }
                     productInfo.value = result;
                 }
@@ -135,6 +140,7 @@ function saveSku(item) {
     activeSku.value = item
 }
 
+const isDetailRetry = ref(false)
 // 获取订单详情
 async function getOrderDetail(item) {
     const data = `{"buyNow":true,"exParams":"{\\"channel\\":\\"damai_app\\",\\"damai\\":\\"1\\",\\"umpChannel\\":\\"100031004\\",\\"subChannel\\":\\"damai@damaih5_h5\\",\\"atomSplit\\":1,\\"serviceVersion\\":\\"2.0.0\\",\\"customerType\\":\\"default\\"}","buyParam":"${item.itemId}_${form.value.num}_${item.skuId}","dmChannel":"damai@damaih5_h5"}`;
@@ -152,7 +158,7 @@ async function getOrderDetail(item) {
             ua,
             umidtoken,
         });
-        log.save(log.getTemplate('tip', '订单详情获取结束'))
+
         const parseData = JSON.parse(res);
 
         if (Array.isArray(parseData.ret) && parseData.ret.length) {
@@ -161,14 +167,41 @@ async function getOrderDetail(item) {
             commonTip(message);
 
             if (isSuccess(message)) {
+                log.save(log.getTemplate('tip', '订单详情获取成功', 'success'))
                 otherHandle(parseData.data)
             } else {
-                Message.error(joinMsg(["error", ...parseData.ret]));
+                const newMsg = joinMsg(["error", ...parseData.ret])
+                Message.error(newMsg);
+
+                // 没有重试过，才进入
+                if(!isDetailRetry.value) {
+                    Message.warning("检测到商品详情获取失败，将再次重新获取，如果再次失败，则停止购票")
+
+                    log.save(log.getTemplate('tip', '订单详情获取失败', 'error', newMsg))
+
+                    isDetailRetry.value = true
+                    getOrderDetail(item)
+                } else {
+                    log.save(log.getTemplate('tip', '订单详情获取失败', 'error', newMsg))
+                    isRob.value = false
+                }
             }
         }
     } catch (e) {
-        console.log(e)
-        Message.error(joinMsg(["订单详情获取失败，请重试", JSON.stringify(e)]))
+        const newMsg = joinMsg(["订单详情获取失败，请重试", JSON.stringify(e)])
+        Message.error(newMsg)
+        // 没有重试过，才进入
+        if(!isDetailRetry.value) {
+            Message.warning("检测到商品详情获取失败，将再次重新获取，如果再次失败，则停止购票")
+
+            log.save(log.getTemplate('tip', '订单详情获取失败', 'error', newMsg))
+
+            isDetailRetry.value = true
+            getOrderDetail(item)
+        } else {
+            log.save(log.getTemplate('tip', '订单详情获取失败', 'error', newMsg))
+            isRob.value = false
+        }
     } finally {
         return null
     }
@@ -193,7 +226,7 @@ async function createOrder(data, submitref) {
             data: lastData,
             submitref,
         });
-        log.save(log.getTemplate('tip', '订单创建结束'))
+
         const parseData = JSON.parse(res);
         if (Array.isArray(parseData.ret) && parseData.ret.length) {
             const message = parseData.ret[0];
@@ -202,23 +235,24 @@ async function createOrder(data, submitref) {
 
             if (isSuccess(message)) {
                 const msg = "购买成功!!!，请在订单页进行支付"
-                log.save(log.getTemplate('tip', '购买成功', 'success', msg))
                 Message.success(msg);
+                log.save(log.getTemplate('tip', '购买成功', 'success', msg))
+                isRob.value = false
             } else {
                 const msg = joinMsg(["error", ...parseData.ret])
-                log.save(log.getTemplate('tip', '购买失败', 'error', msg))
                 Message.error(msg);
+                log.save(log.getTemplate('tip', '购买失败', 'error', msg))
 
                 // 重新下订单过滤条件
                 // 1. 已经有订单
                 if(msg.includes(HAVE_ORDER)) {
-                    const newMsg = '检测到已有订单'
+                    const newMsg = '检测到已有订单，即将退出抢票'
                     log.save(log.getTemplate('tip', '已有订单', 'error', newMsg))
                     return
                 }
                 // 2. 账号被限制
                 if(msg.includes(VALIDATE)) {
-                    const newMsg = '检测到账号已被限制，请重新生成 cookie'
+                    const newMsg = '检测到账号已被限制，请重新生成 cookie，即将退出抢票'
                     Message.error(newMsg)
                     log.save(log.getTemplate('tip', '账号被限制', 'error', newMsg))
                     return
@@ -235,8 +269,11 @@ async function createOrder(data, submitref) {
             }
         }
     } catch (e) {
-        console.log(e)
-        Message.error(joinMsg(["订单发送失败，请重试", JSON.stringify(e)]))
+        const newMsg = joinMsg(["订单发送失败，请重试", JSON.stringify(e)])
+        log.save(log.getTemplate('tip', '订单创建失败', 'error', newMsg))
+        Message.error(newMsg)
+
+        isRob.value = false
     }
 }
 
@@ -250,6 +287,7 @@ async function buy() {
     // 点击购买，就 重置 重试次数
     currentRetryCount.value = Number(form.value.retry) - 1
 
+    isDetailRetry.value = false
     // 对应票档的信息（对应*订单*详情页）
     getOrderDetail(activeSku.value)
 }
