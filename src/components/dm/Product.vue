@@ -8,13 +8,17 @@ import {
     combinationOrderParams,
     joinMsg,
     encode,
+    HAVE_ORDER,
+    VALIDATE,
 } from "../../../utils/dm/index.js";
 import { invoke } from "@tauri-apps/api/tauri";
 import { Message, Notification } from "@arco-design/web-vue";
 import dayjs from 'dayjs';
 import { useStore } from 'vuex'
+import Log from '../../../utils/dm/log.js'
 
 const store = useStore()
+const log = new Log()
 
 const productInfo = ref(null);
 
@@ -22,10 +26,15 @@ const productInfo = ref(null);
 const isPreSell = ref(false)
 // 倒计时
 const isShowCountDown = ref(false);
+// 接口时间
 const countDownVal = ref(0);
+// 修正时间
+const timeFix = ref(0)
+// 最终时间
+const lastCountDownVal = computed(() => countDownVal.value + timeFix.value)
 
 // 从 store 获取 form
-const form = computed(() => store.state.form)
+const form = computed(() => store.state.dm.form)
 async function getProductInfo() {
     const data = `{"itemId":"${form.value.itemId}","bizCode":"ali.china.damai","scenario":"itemsku","exParams":"{\\"dataType\\":4,\\"dataId\\":\\"\\",\\"privilegeActId\\":\\"\\"}","dmChannel":"damai@damaih5_h5"}`;
     const [t, sign] = getSign(data, form.value.token);
@@ -58,7 +67,9 @@ async function getProductInfo() {
                         Message.error(joinMsg([result.itemBuyBtn.btnText, result.itemBuyBtn.btnTips]))
                         return
                     } else if(result.itemBuyBtn.btnStatus === "106") {
+                        // console.log('result', result)
                         // 即将开抢
+                        // TODO bug fix
                         countDownVal.value = dayjs(result.itemBasicInfo.sellingStartTime).valueOf();
                         isPreSell.value = true
                         isShowCountDown.value = true;
@@ -132,6 +143,7 @@ async function getOrderDetail(item) {
     const [ua, umidtoken] = getHeaderUaAndUmidtoken();
 
     try {
+        log.save(log.getTemplate('tip', '获取订单详情'))
         const res = await invoke("get_ticket_detail", {
             t,
             sign,
@@ -140,6 +152,7 @@ async function getOrderDetail(item) {
             ua,
             umidtoken,
         });
+        log.save(log.getTemplate('tip', '订单详情获取结束'))
         const parseData = JSON.parse(res);
 
         if (Array.isArray(parseData.ret) && parseData.ret.length) {
@@ -172,7 +185,7 @@ async function createOrder(data, submitref) {
     })
     lastData = `${lastData}&bx-ua=${ua}&bx-umidtoken=${umidtoken}`;
     try {
-        let startTime = Date.now();
+        log.save(log.getTemplate('tip', '开始创建订单'))
         const res = await invoke("create_order", {
             cookie: form.value.cookie,
             t,
@@ -180,7 +193,7 @@ async function createOrder(data, submitref) {
             data: lastData,
             submitref,
         });
-        let endTime = Date.now();
+        log.save(log.getTemplate('tip', '订单创建结束'))
         const parseData = JSON.parse(res);
         if (Array.isArray(parseData.ret) && parseData.ret.length) {
             const message = parseData.ret[0];
@@ -189,16 +202,28 @@ async function createOrder(data, submitref) {
 
             if (isSuccess(message)) {
                 const msg = "购买成功!!!，请在订单页进行支付"
-                saveHistory(startTime, endTime, msg)
+                log.save(log.getTemplate('tip', '购买成功', 'success', msg))
                 Message.success(msg);
             } else {
-                console.log('1')
                 const msg = joinMsg(["error", ...parseData.ret])
-                console.log('2', msg)
-                saveHistory(startTime, endTime, msg)
-                console.log('3')
+                log.save(log.getTemplate('tip', '购买失败', 'error', msg))
                 Message.error(msg);
-                console.log('enter')
+
+                // 重新下订单过滤条件
+                // 1. 已经有订单
+                if(msg.includes(HAVE_ORDER)) {
+                    const newMsg = '检测到已有订单'
+                    log.save(log.getTemplate('tip', '已有订单', 'error', newMsg))
+                    return
+                }
+                // 2. 账号被限制
+                if(msg.includes(VALIDATE)) {
+                    const newMsg = '检测到账号已被限制，请重新生成 cookie'
+                    Message.error(newMsg)
+                    log.save(log.getTemplate('tip', '账号被限制', 'error', newMsg))
+                    return
+                }
+
                 // 只要没有抢票成功，就重新创建订单
                 if(currentRetryCount.value) {
                     currentRetryCount.value =  currentRetryCount.value - 1
@@ -215,25 +240,6 @@ async function createOrder(data, submitref) {
     }
 }
 
-function saveHistory(start, end, msg) {
-    const data = {
-        startTime: start,
-        endTime: end,
-        diff: end - start,
-        message: msg,
-    }
-
-    store.commit('pushBuyHistory', data)
-
-    let storageData = localStorage.getItem('buyHistory')
-    storageData = storageData ? JSON.parse(storageData) : []
-
-    localStorage.setItem('buyHistory', JSON.stringify([
-        ...storageData,
-        data
-    ]))
-}
-
 function getSecret(data) {
     return data.global
         ? data.global.secretKey + "=" + data.global.secretValue
@@ -243,18 +249,6 @@ function getSecret(data) {
 async function buy() {
     // 点击购买，就 重置 重试次数
     currentRetryCount.value = Number(form.value.retry) - 1
-
-    // 检查票档是否选择
-    if(!activeSku.value) {
-        Message.warning("请选择票档");
-        return
-    }
-
-    // 检查是否选择观演人
-    if(!selectVisitUserList.value.length) {
-        Message.warning("请选择观演人")
-        return
-    }
 
     // 对应票档的信息（对应*订单*详情页）
     getOrderDetail(activeSku.value)
@@ -274,12 +268,21 @@ function otherHandle(orderDetail) {
 // 2. 如果为预售商品，则点击后，倒计时结束则开始自动抢票
 const isRob = ref(false)
 async function rob() {
+    log.save(log.getTemplate('click', '点击抢票'))
+    // checkTime()
     isRob.value = true
     Notification.info({
         title: "开始抢票，当倒计时结束时，将自动购买。请确保本地电脑时间准确",
         duration: 8000
     })
 }
+
+// 时间提醒
+function checkTime() {
+
+}
+
+
 // 倒计时是否结束
 const isFinish = ref(false)
 // 倒计时结束，如果为抢票开启状态，则直接购买
@@ -288,6 +291,7 @@ async function countDownFinished() {
 
     if(isRob.value) {
         Notification.info(`开始抢票，当前时间为：${dayjs().format('hh:mm:ss:SSS')}`)
+        log.save(log.getTemplate('tip', '开始抢票'))
         buy()
     } else {
         Notification.info("可以抢票啦")
@@ -306,11 +310,19 @@ async function countDownFinished() {
                         :src="productInfo.itemBasicInfo.mainImageUrl"
                     />
 
+                    <div v-if="isShowCountDown">
+                        修正时间(毫秒)：
+                        <a-input-number
+                            v-model="timeFix"
+                            :style="{ width: '200px' }"
+                            placeholder="倒计时修正时间"
+                        />
+                    </div>
                     <div>
                         <a-countdown
                             v-if="isShowCountDown"
                             title="开售倒计时"
-                            :value="countDownVal"
+                            :value="lastCountDownVal"
                             :now="Date.now()"
                             format="HH:mm:ss.SSS"
                             @finish="countDownFinished"

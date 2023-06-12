@@ -1,11 +1,19 @@
+import {
+    ADD_VISIT_USER,
+    ADD_FORM,
+    SET_SELECT_VISIT_USER,
+    SET_LOG,
+} from "./mutation-types.js";
+import dayjs from "dayjs";
+
 export default {
-    addForm(state, payload) {
-        state.form = payload;
-    },
-    addVisitUser(state, payload) {
+    [ADD_VISIT_USER](state, payload) {
         state.dm.visitUserList = payload;
     },
-    setSelectVisitUser(state, payload) {
+    [ADD_FORM](state, payload) {
+        state.dm.form = payload;
+    },
+    [SET_SELECT_VISIT_USER](state, payload) {
         state.dm.selectVisitUserList = Array.isArray(payload) ? payload : [];
     },
     pushBuyHistory(state, payload) {
@@ -13,6 +21,14 @@ export default {
             state.dm.buyHistory = [...state.dm.buyHistory, ...payload];
         } else {
             state.dm.buyHistory = [...state.dm.buyHistory, payload];
+        }
+    },
+    [SET_LOG](state, payload) {
+        const day = dayjs().format(`YYYY-MM-DD`);
+        if (state.dm.log[day]) {
+            state.dm.log[day].push(payload);
+        } else {
+            state.dm.log[day] = [payload];
         }
     },
 };

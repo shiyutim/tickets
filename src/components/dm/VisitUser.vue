@@ -17,7 +17,7 @@ onMounted(() => {
 
 const store = useStore();
 
-const form = computed(() => store.state.form);
+const form = computed(() => store.state.dm.form);
 const visitUserList = computed(() => store.state.dm.visitUserList)
 
 // TODO
@@ -26,7 +26,7 @@ function initVisitUser() {
     // 如果不存在，则请求接口并保存
     const data = getStore()
     if(Array.isArray(data) && data.length) {
-        store.commit("addVisitUser", data)
+        store.commit("ADD_VISIT_USER", data)
     } else {
         getVisitUser()
     }
@@ -55,7 +55,7 @@ async function getVisitUser() {
                 const result = parseData.data.result
                 if(Array.isArray(result) && result.length) {
                     saveStore(result)
-                    store.commit("addVisitUser", result)
+                    store.commit("ADD_VISIT_USER", result)
                 } else {
                     Message.error("观演人信息获取错误，请设置正确的信息")
                 }
@@ -92,7 +92,7 @@ function setLoading() {
 }
 
 function userChange(valList) {
-    store.commit("setSelectVisitUser", valList)
+    store.commit("SET_SELECT_VISIT_USER", valList)
 }
 
 defineExpose({initVisitUser})

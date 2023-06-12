@@ -81,7 +81,11 @@ async fn get_info(
 
 #[tauri::command]
 fn get_ticket_list(t: usize, sign: &str, itemid: &str, cookie: &str, dataid: &str) -> String {
-    get_ticket_list_res(t, sign, itemid, cookie, dataid).unwrap()
+    let res = get_ticket_list_res(t, sign, itemid, cookie, dataid);
+    match res {
+        Err(e) => e.to_string(),
+        Ok(msg) => msg,
+    }
 }
 
 #[tokio::main]
@@ -123,7 +127,11 @@ fn get_ticket_detail(
     ua: &str,
     umidtoken: &str,
 ) -> String {
-    get_ticket_detail_res(t, sign, cookie, data, ua, umidtoken).unwrap()
+    let res = get_ticket_detail_res(t, sign, cookie, data, ua, umidtoken);
+    match res {
+        Err(e) => e.to_string(),
+        Ok(msg) => msg,
+    }
 }
 
 #[tokio::main]

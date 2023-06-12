@@ -8,8 +8,9 @@ import {
 import { Message } from "@arco-design/web-vue";
 import Form from '../components/dm/Form.vue'
 import Product from '../components/dm/Product.vue'
-import VisitUser from '../components/dm/VisitUser.vue'
-import BuyHistory from "../components/dm/BuyHistory.vue";
+import Header from '../components/dm/Header.vue'
+// import VisitUser from '../components/dm/VisitUser.vue'
+// import BuyHistory from "../components/dm/BuyHistory.vue";
 
 onMounted(() => {
     // 加载凭证脚本
@@ -30,7 +31,7 @@ onMounted(() => {
 const productRef = ref(null)
 
 // 观演人引用
-const visitUserRef = ref(null)
+// const visitUserRef = ref(null)
 
 // 获取商品信息
 const handleSubmit = async () => {
@@ -54,16 +55,14 @@ function collapseChange() {
 
 <template>
     <div class="container">
+        <Header></Header>
         <a-collapse :activeKey="formActive" :onChange="collapseChange">
-            <a-collapse-item
-                :header="`${formActive.length ? '展开' : '收起'}`"
-                key="1"
-            >
+            <a-collapse-item header="基本信息" key="1">
                 <Form :handleSubmit="handleSubmit"></Form>
             </a-collapse-item>
         </a-collapse>
-        <BuyHistory></BuyHistory>
-        <VisitUser ref="visitUserRef"></VisitUser>
+        <!-- <BuyHistory></BuyHistory> -->
+        <!-- <VisitUser ref="visitUserRef"></VisitUser> -->
         <product ref="productRef"></product>
     </div>
 </template>

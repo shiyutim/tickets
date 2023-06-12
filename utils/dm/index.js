@@ -506,3 +506,7 @@ export function encode(e) {
     }
     return t.join("&");
 }
+
+// 判断文案
+export const HAVE_ORDER = "您还有未支付订单";
+export const VALIDATE = "FAIL_SYS_USER_VALIDATE";
