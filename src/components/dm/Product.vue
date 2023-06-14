@@ -54,22 +54,22 @@ async function getProductInfo() {
             commonTip(message);
 
             if (isSuccess(message)) {
-                const result = parseData.data
+                let result = parseData.data
                     ? JSON.parse(parseData.data.result)
                     : "";
-                if (result) {
-                    if (result.itemBuyBtn.btnStatus === "303") {
+                result = result.detailViewComponentMap.item || {}
+
+                    if (result.item.buyBtnStatus === "303") {
                         // 下架
                         Message.warning(`商品已下架`);
                         return;
-                    } else if(result.itemBuyBtn.btnStatus === "100") {
+                    } else if(result.item.buyBtnStatus === "100") {
                         // 不支持该渠道
-                        Message.error(joinMsg([result.itemBuyBtn.btnText, result.itemBuyBtn.btnTips]))
+                        Message.error(joinMsg([result.item.buyBtnText, result.item.buyBtnTips]))
                         return
-                    } else if(result.itemBuyBtn.btnStatus === "106") {
+                    } else if(result.item.buyBtnStatus === "106") {
                         // 即将开抢
-                        // TODO bug fix
-                        countDownVal.value = dayjs(result.itemBasicInfo.sellingStartTime).valueOf();
+                        countDownVal.value = Number(result.item.sellStartTime);
 
                         // 如果预售的商品开售，则直接显示购买
                         if(countDownVal.value > Date.now()) {
@@ -84,7 +84,6 @@ async function getProductInfo() {
             } else {
                 Message.error("获取商品详情失败");
             }
-        }
     } catch (e) {
         Message.error(joinMsg(["获取商品详情失败", JSON.stringify(e)]));
     }
@@ -99,12 +98,13 @@ const skuInfo = reactive({});
 const activeSku = ref(null);
 
 async function getSkuInfo(item) {
-    if (!item && item.performId) {
+    if (!item || !Array.isArray(item.performs) || !item.performs.length) {
         Message.error("场地信息或场次 id 获取错误，请重新获取商品信息");
         return;
     }
+    const performId = item.performs[0].performId
 
-    const data = `{"itemId":"${form.value.itemId}","bizCode":"ali.china.damai","scenario":"itemsku","exParams":"{\\"dataType\\":2,\\"dataId\\":\\"${item.performId}\\",\\"privilegeActId\\":\\"\\"}","dmChannel":"damai@damaih5_h5"}`;
+    const data = `{"itemId":"${form.value.itemId}","bizCode":"ali.china.damai","scenario":"itemsku","exParams":"{\\"dataType\\":2,\\"dataId\\":\\"${performId}\\",\\"privilegeActId\\":\\"\\"}","dmChannel":"damai@damaih5_h5"}`;
     const [t, sign] = getSign(data, form.value.token);
 
     try {
@@ -113,7 +113,7 @@ async function getSkuInfo(item) {
             sign,
             itemid: form.value.itemId,
             cookie: form.value.cookie,
-            dataid: item.performId,
+            dataid: performId,
         });
 
         const parseData = JSON.parse(res);
@@ -127,7 +127,7 @@ async function getSkuInfo(item) {
                     ? JSON.parse(parseData.data.result)
                     : "";
                 if (result) {
-                    skuInfo[item.performId] = result;
+                    skuInfo[performId] = result;
                 }
             }
         }
@@ -307,17 +307,26 @@ function otherHandle(orderDetail) {
 const isRob = ref(false)
 async function rob() {
     log.save(log.getTemplate('click', '点击抢票'))
-    // checkTime()
     isRob.value = true
     Notification.info({
-        title: "开始抢票，当倒计时结束时，将自动购买。请确保本地电脑时间准确",
+        title: "开始抢票，当倒计时结束时，将自动购买。请确保本地电脑时间准确或根据大麦自动校准时间",
         duration: 8000
     })
+    checkTime()
 }
 
 // 时间提醒
 function checkTime() {
+    // 最终时间和当前时间的差
+    const diff = lastCountDownVal.value - Date.now()
+    const oneHour = 1000 * 60 * 60
 
+    if(diff > oneHour) {
+        Notification.info({
+            title: "提示：抢票时间尽量在一个小时内，并使用最新的 cookie，否则可能导致抢票失败",
+            duration: 5000
+        })
+    }
 }
 
 
@@ -341,11 +350,11 @@ async function countDownFinished() {
     <section class="product-wrap">
         <div class="subtitle">商品信息</div>
         <div v-if="productInfo">
-            <div class="info-wrap" v-if="productInfo.itemBasicInfo">
+            <div class="info-wrap" v-if="productInfo.staticData">
                 <div class="left">
                     <img
                         class="img"
-                        :src="productInfo.itemBasicInfo.mainImageUrl"
+                        :src="productInfo.staticData.itemBase.itemPic"
                     />
 
                     <div v-if="isShowCountDown">
@@ -390,66 +399,81 @@ async function countDownFinished() {
 
                 <div class="right">
                     <div class="column">
-                        <div>{{ productInfo.itemBasicInfo.cityName }}</div>
-                        <div>{{ productInfo.itemBasicInfo.venueName }}</div>
+                        <div>
+                            {{ productInfo.staticData.itemBase.cityName }}
+                        </div>
                     </div>
                     <div class="column">
                         <div class="label">名称：</div>
                         <div class="value">
-                            {{
-                                productInfo.itemBasicInfo.itemTitle ||
-                                productInfo.itemBasicInfo.projectTitle
-                            }}
+                            {{ productInfo.staticData.itemBase.itemName }}
                         </div>
                     </div>
                     <div class="column">
                         <div class="label">itemId：</div>
                         <div class="value">
-                            {{ productInfo.itemBasicInfo.itemId }}
+                            {{ productInfo.staticData.itemBase.itemId }}
                         </div>
                     </div>
                     <div class="column">
                         <div class="label">价格：</div>
                         <div class="value">
-                            {{ productInfo.itemBasicInfo.priceRange }}
+                            {{ productInfo.item.priceRange }}
                         </div>
                     </div>
 
+                    <h4>场次</h4>
                     <div class="ticket-list">
                         <div
-                            v-for="item in productInfo.performCalendar
-                                .performViews"
+                            v-for="item in productInfo.item.performBases"
                             class="ticket-item"
                             @click="getSkuInfo(item)"
                         >
-                            {{ item.performName }}
-                        </div>
-                    </div>
+                            <div class="ticket-item-head">
+                                {{ item.name }}
 
-                    <div class="sku-wrap">
-                        <div v-for="item in skuInfo" class="sku">
-                            <div
-                                class="sku-item"
-                                :class="{
-                                    'active-sku':
-                                        activeSku &&
-                                        activeSku.skuId === sku.skuId,
-                                }"
-                                v-for="sku in item.perform.skuList"
-                                @click="saveSku(sku)"
-                            >
-                                <div>{{ sku.priceName }}</div>
-                                <div>{{ sku.price }}</div>
-                                <div
-                                    class="tag"
-                                    v-if="
-                                        Array.isArray(sku.tags) &&
-                                        sku.tags.length
+                                <a-tag
+                                    v-if="item.performBaseTagDesc"
+                                    :color="
+                                        item.performBaseTagDesc === '无票'
+                                            ? '#f53f3f'
+                                            : ''
                                     "
                                 >
-                                    <a-tag color="#f53f3f">{{
-                                        sku.tags[0].tagDesc
-                                    }}</a-tag>
+                                    {{ item.performBaseTagDesc }}
+                                </a-tag>
+                            </div>
+
+                            <div
+                                class="sku"
+                                v-if="skuInfo[item.performs[0].performId]"
+                            >
+                                <h4>票档</h4>
+                                <div
+                                    class="sku-item"
+                                    :class="{
+                                        'active-sku':
+                                            activeSku &&
+                                            activeSku.skuId === sku.skuId,
+                                    }"
+                                    v-for="sku in skuInfo[
+                                        item.performs[0].performId
+                                    ].perform.skuList"
+                                    @click="saveSku(sku)"
+                                >
+                                    <div>{{ sku.priceName }}</div>
+                                    <div>{{ sku.price }}</div>
+                                    <div
+                                        class="tag"
+                                        v-if="
+                                            Array.isArray(sku.tags) &&
+                                            sku.tags.length
+                                        "
+                                    >
+                                        <a-tag color="#f53f3f">{{
+                                            sku.tags[0].tagDesc
+                                        }}</a-tag>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -457,7 +481,7 @@ async function countDownFinished() {
                 </div>
             </div>
         </div>
-        <div v-else>请先获取商品信息</div>
+        <div v-else>请填写表单以获取商品信息</div>
     </section>
 </template>
 
@@ -502,36 +526,33 @@ async function countDownFinished() {
     flex-flow: row nowrap;
 }
 .ticket-item {
-    border: 1px solid #ccc;
-    width: 200px;
-    padding: 20px 0;
-    margin-bottom: 10px;
-    margin-right: 30px;
+    margin-right: 20px;
+    &-head {
+        border: 1px solid #ccc;
+        width: 200px;
+        padding: 20px 0;
+        margin-bottom: 10px;
 
-    text-align: center;
-    cursor: pointer;
-    &:hover {
-        background: #eee;
+        text-align: center;
+        cursor: pointer;
+        &:hover {
+            background: #eee;
+        }
     }
 }
 
-.sku-wrap {
-    display: flex;
-    flex-flow: row wrap;
+.sku-item {
+    border: 1px solid #ccc;
+    cursor: pointer;
+    padding: 20px 0;
+    margin-bottom: 10px;
+    text-align: center;
 
-    .sku-item {
-        border: 1px solid #ccc;
-        cursor: pointer;
-        padding: 20px 0;
-        margin-bottom: 10px;
-        text-align: center;
-
-        .tag {
-            color: #ff0000;
-        }
+    .tag {
+        color: #ff0000;
     }
-    .active-sku {
-        background: #eee;
-    }
+}
+.active-sku {
+    background: #eee;
 }
 </style>

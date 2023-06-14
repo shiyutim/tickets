@@ -17,11 +17,8 @@ struct ProductInfo {
 fn get_product_info(t: usize, sign: &str, itemid: &str, cookie: &str) -> String {
     let res = get_info(t, sign, itemid, cookie);
     match res {
+        Err(e) => String::from(format!("数据获取失败 {}", e)),
         Ok(s) => s,
-        Err(e) => {
-            println!("error: {}", e);
-            String::from("数据获取失败")
-        }
     }
 }
 
@@ -57,7 +54,8 @@ async fn get_info(
     itemid: &str,
     cookie: &str,
 ) -> Result<String, Box<dyn Error>> {
-    let url = format!("https://mtop.damai.cn/h5/mtop.alibaba.detail.subpage.getdetail/2.0/?jsv=2.7.2&appKey=12574478&t={}&sign={}&type=originaljson&dataType=json&v=2.0&H5Request=true&AntiCreep=true&AntiFlood=true&api=mtop.alibaba.detail.subpage.getdetail&method=GET&tb_eagleeyex_scm_project=20190509-aone2-join-test&data=%7B%22itemId%22%3A%22{}%22%2C%22bizCode%22%3A%22ali.china.damai%22%2C%22scenario%22%3A%22itemsku%22%2C%22exParams%22%3A%22%7B%5C%22dataType%5C%22%3A4%2C%5C%22dataId%5C%22%3A%5C%22%5C%22%2C%5C%22privilegeActId%5C%22%3A%5C%22%5C%22%7D%22%2C%22dmChannel%22%3A%22damai%40damaih5_h5%22%7D", t, sign, itemid);
+    // let url = format!("https://mtop.damai.cn/h5/mtop.alibaba.detail.subpage.getdetail/2.0/?jsv=2.7.2&appKey=12574478&t={}&sign={}&type=originaljson&dataType=json&v=2.0&H5Request=true&AntiCreep=true&AntiFlood=true&api=mtop.alibaba.detail.subpage.getdetail&method=GET&tb_eagleeyex_scm_project=20190509-aone2-join-test&data=%7B%22itemId%22%3A%22{}%22%2C%22bizCode%22%3A%22ali.china.damai%22%2C%22scenario%22%3A%22itemsku%22%2C%22exParams%22%3A%22%7B%5C%22dataType%5C%22%3A4%2C%5C%22dataId%5C%22%3A%5C%22%5C%22%2C%5C%22privilegeActId%5C%22%3A%5C%22%5C%22%7D%22%2C%22dmChannel%22%3A%22damai%40damaih5_h5%22%7D", t, sign, itemid);
+    let url = format!("https://mtop.damai.cn/h5/mtop.alibaba.damai.detail.getdetail/1.2/?jsv=2.7.2&appKey=12574478&t={}&sign={}&type=originaljson&dataType=json&v=2.0&H5Request=true&AntiCreep=true&AntiFlood=true&api=mtop.alibaba.detail.subpage.getdetail&method=GET&tb_eagleeyex_scm_project=20190509-aone2-join-test&data=%7B%22itemId%22%3A%22{}%22%2C%22bizCode%22%3A%22ali.china.damai%22%2C%22scenario%22%3A%22itemsku%22%2C%22exParams%22%3A%22%7B%5C%22dataType%5C%22%3A4%2C%5C%22dataId%5C%22%3A%5C%22%5C%22%2C%5C%22privilegeActId%5C%22%3A%5C%22%5C%22%7D%22%2C%22dmChannel%22%3A%22damai%40damaih5_h5%22%7D", t, sign, itemid);
 
     let mut headers = get_common_headers();
     headers.insert(

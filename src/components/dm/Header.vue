@@ -13,8 +13,13 @@ function initLog() {
     list.value = res.flat(Infinity).reverse();
 }
 
+function initDate() {
+    defaultValue.value = [dayjs().format('YYYY-MM-DD'), dayjs().format('YYYY-MM-DD')]
+}
+
 function showLog() {
     visible.value = true;
+    initDate()
     initLog()
 }
 
