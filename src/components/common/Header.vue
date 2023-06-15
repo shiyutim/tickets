@@ -2,6 +2,8 @@
 import { ref } from 'vue';
 import dayjs from 'dayjs'
 import Log from '../../../utils/dm/log';
+import { WebviewWindow } from '@tauri-apps/api/window'
+import { Message } from '@arco-design/web-vue';
 const visible = ref(false);
 
 const log = new Log()
@@ -49,11 +51,33 @@ function getTagColor(status) {
 
     return template[status] || '#86909c'
 }
+
+
+const timeWebview = ref(null)
+async function goTime() {
+    if(timeWebview.value) {
+        console.log(timeWebview.value)
+        return
+    }
+    timeWebview.value = new WebviewWindow('time', {
+        url: 'http://time.tianqi.com/',
+    })
+
+    timeWebview.value.once('tauri://created', function () {
+        console.log("创建成功")
+    })
+    timeWebview.value.once('tauri://error', function (e) {
+        Message.error("窗口创建失败，请手动访问 http://time.tianqi.com/或百度搜索 北京时间，自行查看校准")
+    })
+}
 </script>
 
 <template>
     <div class="container">
-        <a-button type="primary" @click="showLog">查看日志</a-button>
+        <a-button style="margin-right: 10px" type="primary" @click="showLog"
+            >查看日志</a-button
+        >
+        <a-button type="primary" @click="goTime">校准时间</a-button>
 
         <a-drawer
             :footer="false"

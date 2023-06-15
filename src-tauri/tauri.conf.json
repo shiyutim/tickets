@@ -16,6 +16,12 @@
       "shell": {
         "all": false,
         "open": true
+      },
+      "window": {
+        "all": true
+      },
+      "dialog": {
+        "all": true
       }
     },
     "bundle": {

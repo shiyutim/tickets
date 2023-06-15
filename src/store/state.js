@@ -1,10 +1,8 @@
 export default {
-    form: {},
     dm: {
-        // form: {},
+        form: {},
         visitUserList: {}, // 实名观演人信息
         selectVisitUserList: [], // 以选择的信息
-        buyHistory: [], // 购买历史记录
         // 操作记录
         log: {
             //     '20230610': [
@@ -17,5 +15,8 @@ export default {
             //         }
             //     ]
         },
+    },
+    my: {
+        form: {},
     },
 };

@@ -13,8 +13,10 @@
     "@arco-design/web-vue": "^2.47.0",
     "@tauri-apps/api": "^1.3.0",
     "dayjs": "^1.11.8",
+    "install": "^0.13.0",
     "sass": "^1.62.1",
     "vue": "^3.2.45",
+    "vue-router": "4",
     "vuex": "^4.0.2"
   },
   "devDependencies": {

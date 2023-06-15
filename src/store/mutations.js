@@ -16,13 +16,6 @@ export default {
     [SET_SELECT_VISIT_USER](state, payload) {
         state.dm.selectVisitUserList = Array.isArray(payload) ? payload : [];
     },
-    pushBuyHistory(state, payload) {
-        if (Array.isArray(payload)) {
-            state.dm.buyHistory = [...state.dm.buyHistory, ...payload];
-        } else {
-            state.dm.buyHistory = [...state.dm.buyHistory, payload];
-        }
-    },
     [SET_LOG](state, payload) {
         const day = dayjs().format(`YYYY-MM-DD`);
         if (state.dm.log[day]) {

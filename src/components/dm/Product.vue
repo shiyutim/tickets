@@ -13,6 +13,8 @@ import {
 } from "../../../utils/dm/index.js";
 import { invoke } from "@tauri-apps/api/tauri";
 import { Message, Notification } from "@arco-design/web-vue";
+import { WebviewWindow, appWindow } from '@tauri-apps/api/window'
+import { confirm } from '@tauri-apps/api/dialog';
 import dayjs from 'dayjs';
 import { useStore } from 'vuex'
 import Log from '../../../utils/dm/log.js'
@@ -306,6 +308,7 @@ function otherHandle(orderDetail) {
 // 2. 如果为预售商品，则点击后，倒计时结束则开始自动抢票
 const isRob = ref(false)
 async function rob() {
+    injectCloseTip()
     log.save(log.getTemplate('click', '点击抢票'))
     isRob.value = true
     Notification.info({
@@ -343,6 +346,18 @@ async function countDownFinished() {
     } else {
         Notification.info("可以抢票啦")
     }
+}
+
+async function injectCloseTip() {
+    // 如果抢票中，才提示
+    await appWindow.onCloseRequested(async (event) => {
+        if(!isFinish.value) return
+        const confirmed = await confirm('检测到正在抢票，退出将结束抢票，确定要退出抢票吗?');
+        if (!confirmed) {
+            // user did not confirm closing the window; let's prevent it
+            event.preventDefault();
+        }
+    });
 }
 </script>
 
