@@ -22,7 +22,7 @@ const form = reactive({
     token: "", // 获取 sign 使用
     url: "",
     num: 1,
-    retry: 2, // 重试次数
+    retry: 5, // 重试次数
     selectVisitUserList: [], //选择的观演人
     isUseProxy: false, // 是否使用代理
     proxy: '', // 代理值
@@ -285,7 +285,7 @@ function userChange(valList) {
                 <a-input-number
                     v-model="form.retry"
                     placeholder="请输入重试次数"
-                    :max="4"
+                    :max="10"
                 />
             </a-form-item>
 
