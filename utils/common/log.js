@@ -34,7 +34,6 @@ export default class Log {
         const end = dayjs(endDate).endOf("date").valueOf();
 
         const query = `SELECT * FROM ${logTableName} WHERE time <= ${end} AND time >= ${start} ORDER BY time DESC`;
-        console.log(query);
         return await select(query);
     }
 
