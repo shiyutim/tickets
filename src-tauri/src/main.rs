@@ -1,21 +1,30 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use reqwest::header;
-use reqwest::header::HeaderMap;
+use reqwest::header::{self, HeaderMap};
 use std::collections::HashMap;
 use std::error::Error;
 use std::time::Duration;
+use tauri::Manager;
+use tickets::proxy_builder::ProxyBuilder;
+use tickets::version;
 
-#[derive(Debug)]
-struct ProductInfo {
-    t: usize,
-    sign: String,
-}
+// #[derive(Debug)]
+// struct ProductInfo {
+//     t: usize,
+//     sign: String,
+// }
 
 #[tauri::command]
-fn get_product_info(t: usize, sign: &str, itemid: &str, cookie: &str) -> String {
-    let res = get_info(t, sign, itemid, cookie);
+fn get_product_info(
+    t: usize,
+    sign: &str,
+    itemid: &str,
+    cookie: &str,
+    is_proxy: bool,
+    address: String,
+) -> String {
+    let res = get_info(t, sign, itemid, cookie, is_proxy, address);
     match res {
         Err(e) => String::from(format!("数据获取失败 {}", e)),
         Ok(s) => s,
@@ -53,8 +62,9 @@ async fn get_info(
     sign: &str,
     itemid: &str,
     cookie: &str,
+    is_proxy: bool,
+    address: String,
 ) -> Result<String, Box<dyn Error>> {
-    // let url = format!("https://mtop.damai.cn/h5/mtop.alibaba.detail.subpage.getdetail/2.0/?jsv=2.7.2&appKey=12574478&t={}&sign={}&type=originaljson&dataType=json&v=2.0&H5Request=true&AntiCreep=true&AntiFlood=true&api=mtop.alibaba.detail.subpage.getdetail&method=GET&tb_eagleeyex_scm_project=20190509-aone2-join-test&data=%7B%22itemId%22%3A%22{}%22%2C%22bizCode%22%3A%22ali.china.damai%22%2C%22scenario%22%3A%22itemsku%22%2C%22exParams%22%3A%22%7B%5C%22dataType%5C%22%3A4%2C%5C%22dataId%5C%22%3A%5C%22%5C%22%2C%5C%22privilegeActId%5C%22%3A%5C%22%5C%22%7D%22%2C%22dmChannel%22%3A%22damai%40damaih5_h5%22%7D", t, sign, itemid);
     let url = format!("https://mtop.damai.cn/h5/mtop.alibaba.damai.detail.getdetail/1.2/?jsv=2.7.2&appKey=12574478&t={}&sign={}&type=originaljson&dataType=json&v=2.0&H5Request=true&AntiCreep=true&AntiFlood=true&api=mtop.alibaba.detail.subpage.getdetail&method=GET&tb_eagleeyex_scm_project=20190509-aone2-join-test&data=%7B%22itemId%22%3A%22{}%22%2C%22bizCode%22%3A%22ali.china.damai%22%2C%22scenario%22%3A%22itemsku%22%2C%22exParams%22%3A%22%7B%5C%22dataType%5C%22%3A4%2C%5C%22dataId%5C%22%3A%5C%22%5C%22%2C%5C%22privilegeActId%5C%22%3A%5C%22%5C%22%7D%22%2C%22dmChannel%22%3A%22damai%40damaih5_h5%22%7D", t, sign, itemid);
 
     let mut headers = get_common_headers();
@@ -64,7 +74,7 @@ async fn get_info(
     );
     headers.insert(header::COOKIE, cookie.parse().unwrap());
 
-    let client = reqwest::Client::new();
+    let client = ProxyBuilder::new(is_proxy, address).get_client()?;
     let res = client
         .get(url)
         .headers(headers)
@@ -78,8 +88,16 @@ async fn get_info(
 }
 
 #[tauri::command]
-fn get_ticket_list(t: usize, sign: &str, itemid: &str, cookie: &str, dataid: &str) -> String {
-    let res = get_ticket_list_res(t, sign, itemid, cookie, dataid);
+fn get_ticket_list(
+    t: usize,
+    sign: &str,
+    itemid: &str,
+    cookie: &str,
+    dataid: &str,
+    is_proxy: bool,
+    address: String,
+) -> String {
+    let res = get_ticket_list_res(t, sign, itemid, cookie, dataid, is_proxy, address);
     match res {
         Err(e) => e.to_string(),
         Ok(msg) => msg,
@@ -93,6 +111,8 @@ async fn get_ticket_list_res(
     itemid: &str,
     cookie: &str,
     dataid: &str,
+    is_proxy: bool,
+    address: String,
 ) -> Result<String, Box<dyn Error>> {
     let url = format!("https://mtop.damai.cn/h5/mtop.alibaba.detail.subpage.getdetail/2.0/?jsv=2.7.2&appKey=12574478&t={}&sign={}&type=originaljson&dataType=json&v=2.0&H5Request=true&AntiCreep=true&AntiFlood=true&api=mtop.alibaba.detail.subpage.getdetail&method=GET&tb_eagleeyex_scm_project=20190509-aone2-join-test&data=%7B%22itemId%22%3A%22{}%22%2C%22bizCode%22%3A%22ali.china.damai%22%2C%22scenario%22%3A%22itemsku%22%2C%22exParams%22%3A%22%7B%5C%22dataType%5C%22%3A2%2C%5C%22dataId%5C%22%3A%5C%22{}%5C%22%2C%5C%22privilegeActId%5C%22%3A%5C%22%5C%22%7D%22%2C%22dmChannel%22%3A%22damai%40damaih5_h5%22%7D", t, sign, itemid, dataid);
 
@@ -103,7 +123,7 @@ async fn get_ticket_list_res(
     );
     headers.insert(header::COOKIE, cookie.parse().unwrap());
 
-    let client = reqwest::Client::new();
+    let client = ProxyBuilder::new(is_proxy, address).get_client()?;
     let res = client
         .get(url)
         .headers(headers)
@@ -124,8 +144,10 @@ fn get_ticket_detail(
     data: &str,
     ua: &str,
     umidtoken: &str,
+    is_proxy: bool,
+    address: String,
 ) -> String {
-    let res = get_ticket_detail_res(t, sign, cookie, data, ua, umidtoken);
+    let res = get_ticket_detail_res(t, sign, cookie, data, ua, umidtoken, is_proxy, address);
     match res {
         Err(e) => e.to_string(),
         Ok(msg) => msg,
@@ -140,6 +162,8 @@ async fn get_ticket_detail_res(
     data: &str,
     ua: &str,
     umidtoken: &str,
+    is_proxy: bool,
+    address: String,
 ) -> Result<String, Box<dyn Error>> {
     let url = format!("https://mtop.damai.cn/h5/mtop.trade.order.build.h5/4.0/?jsv=2.7.2&appKey=12574478&t={}&sign={}&type=originaljson&dataType=json&v=4.0&H5Request=true&AntiCreep=true&AntiFlood=true&api=mtop.trade.order.build.h5&method=POST&ttid=%23t%23ip%23%23_h5_2014&globalCode=ali.china.damai&tb_eagleeyex_scm_project=20190509-aone2-join-test", t, sign);
     let mut params = HashMap::new();
@@ -154,7 +178,7 @@ async fn get_ticket_detail_res(
     );
     headers.insert(header::COOKIE, cookie.parse().unwrap());
 
-    let client = reqwest::Client::new();
+    let client = ProxyBuilder::new(is_proxy, address).get_client()?;
     let res = client
         .post(url)
         .form(&params)
@@ -169,8 +193,16 @@ async fn get_ticket_detail_res(
 }
 
 #[tauri::command]
-fn create_order(t: usize, sign: &str, cookie: &str, data: &str, submitref: &str) -> String {
-    let res = create_order_res(t, sign, cookie, data, submitref);
+fn create_order(
+    t: usize,
+    sign: &str,
+    cookie: &str,
+    data: &str,
+    submitref: &str,
+    is_proxy: bool,
+    address: String,
+) -> String {
+    let res = create_order_res(t, sign, cookie, data, submitref, is_proxy, address);
     match res {
         Ok(res) => res,
         Err(err) => {
@@ -187,6 +219,8 @@ async fn create_order_res(
     cookie: &str,
     data: &str,
     submitref: &str,
+    is_proxy: bool,
+    address: String,
 ) -> Result<String, Box<dyn Error>> {
     let url = format!("https://mtop.damai.cn/h5/mtop.trade.order.create.h5/4.0/?jsv=2.7.2&appKey=12574478&t={}&sign={}&v=4.0&post=1&type=originaljson&timeout=15000&dataType=json&isSec=1&ecode=1&AntiCreep=true&ttid=%23t%23ip%23%23_h5_2014&globalCode=ali.china.damai&tb_eagleeyex_scm_project=20190509-aone2-join-test&H5Request=true&api=mtop.trade.order.create.h5&{}", t, sign, submitref);
 
@@ -197,7 +231,7 @@ async fn create_order_res(
     );
     headers.insert(header::COOKIE, cookie.parse().unwrap());
 
-    let client = reqwest::Client::new();
+    let client = ProxyBuilder::new(is_proxy, address).get_client()?;
     let res = client
         .post(url)
         .body(data.to_string())
@@ -212,8 +246,15 @@ async fn create_order_res(
 }
 
 #[tauri::command]
-fn get_user_list(t: usize, sign: &str, cookie: &str, data: &str) -> String {
-    let res = get_user_list_res(t, sign, cookie, data);
+fn get_user_list(
+    t: usize,
+    sign: &str,
+    cookie: &str,
+    data: &str,
+    is_proxy: bool,
+    address: String,
+) -> String {
+    let res = get_user_list_res(t, sign, cookie, data, is_proxy, address);
 
     match res {
         Err(e) => String::from("数据观演人信息错误"),
@@ -227,6 +268,8 @@ async fn get_user_list_res(
     sign: &str,
     cookie: &str,
     data: &str,
+    is_proxy: bool,
+    address: String,
 ) -> Result<String, Box<dyn Error>> {
     let url = format!("https://mtop.damai.cn/h5/mtop.damai.wireless.user.customerlist.get/2.0/?jsv=2.7.2&appKey=12574478&t={}&sign={}&type=originaljson&dataType=json&v=2.0&H5Request=true&AntiCreep=true&AntiFlood=true&api=mtop.damai.wireless.user.customerlist.get&method=GET&hasToast=true&needTbLogin=true&data={}", t, sign, data);
 
@@ -237,7 +280,7 @@ async fn get_user_list_res(
     );
     headers.insert(header::COOKIE, cookie.parse().unwrap());
 
-    let client = reqwest::Client::new();
+    let client = ProxyBuilder::new(is_proxy, address).get_client()?;
     let res = client
         .get(url)
         .headers(headers)
@@ -252,12 +295,22 @@ async fn get_user_list_res(
 
 fn main() {
     tauri::Builder::default()
+        .setup(|_app| {
+            #[cfg(debug_assertions)] // only include this code on debug builds
+            {
+                let window = _app.get_window("main").unwrap();
+                window.open_devtools();
+            }
+            Ok(())
+        })
+        .plugin(tauri_plugin_sql::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
             get_product_info,
             get_ticket_list,
             get_ticket_detail,
             create_order,
             get_user_list,
+            crate::version::get_repo_version,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

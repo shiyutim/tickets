@@ -11,8 +11,10 @@ import {
     isSuccess,
     joinMsg,
 } from "../../../utils/dm/index.js";
+import Log from '../../../utils/common/log'
 
 const store = useStore();
+const log = new Log();
 
 const form = reactive({
     cookie: "",
@@ -20,14 +22,43 @@ const form = reactive({
     token: "", // 获取 sign 使用
     url: "",
     num: 1,
-    retry: 2,
-    selectVisitUserList: [] //选择的观演人
+    retry: 2, // 重试次数
+    selectVisitUserList: [], //选择的观演人
+    isUseProxy: false, // 是否使用代理
+    proxy: '', // 代理值
+    interval: 1000, // 间隔时间
 });
+
+function loadProxy() {
+    const proxy = localStorage.getItem("proxy");
+
+    proxy && (form.proxy = JSON.parse(proxy))
+}
+
+const proxyStatus = ref('')
+
+async function checkProxy() {
+    if(!form.proxy) {
+        Message.warning("请先设置代理")
+        return
+    }
+    proxyStatus.value = 'validating'
+
+    try {
+        const res = await invoke("check_proxy", {
+            proxy: form.proxy
+        })
+
+    } catch(e) {
+        console.log(e)
+    }
+}
 
 onMounted(() => {
     initVisitUser()
 })
 
+// 处理url
 watch(() => form.url, (url) => {
     const search = url.split("html")[1]
     const itemId = getQueryString('itemId', search)
@@ -35,6 +66,13 @@ watch(() => form.url, (url) => {
         form.itemId = itemId;
     } else {
         Message.warning("此url无法获取 itemId")
+    }
+})
+
+// 处理proxy
+watch(() => form.isUseProxy, val => {
+    if(val) {
+        loadProxy()
     }
 })
 
@@ -53,13 +91,13 @@ function handleSubmit(e) {
 
         return
     }
-
     store.commit('ADD_FORM', {
         ...e.values,
         cookie: e.values.cookie.trim(),
         // 根据 cookie 解析 token，用来生成 t 和 sign
-        token:  getToken(e.values.cookie.trim())
+        token:  getToken(e.values.cookie.trim()),
     })
+    log.save(log.getTemplate("click", "点击获取商品信息"))
     props.handleSubmit()
 }
 
@@ -80,7 +118,7 @@ async function getVisitUser() {
         Message.warning("请输入cookie")
         return
     }
-    const data = `{"customerType":"default","dmChannel":"damai@damaih5_h5"}`;
+    const data = `{"customerType":"default","dmChannel":"damai@weixin_gzh"}`;
     const [t, sign] = getSign(data, getToken(form.cookie.trim()));
     try {
         const res = await invoke("get_user_list", {
@@ -88,6 +126,8 @@ async function getVisitUser() {
             sign,
             cookie: form.cookie.trim(),
             data,
+            isProxy: form.isUseProxy,
+            address: form.proxy,
         })
 
         const parseData = JSON.parse(res)
@@ -96,21 +136,30 @@ async function getVisitUser() {
             commonTip(message);
 
             if (isSuccess(message)) {
-                console.log('parseData', parseData)
                 const result = parseData.data.result
                 if(Array.isArray(result) && result.length) {
                     saveStore(result)
                     store.commit("ADD_VISIT_USER", result)
+                    log.save(log.getTemplate('tip', '获取观演人信息成功', 'success'));
                     form.selectVisitUserList = []
                 } else {
-                    Message.error("观演人信息获取错误，请设置正确的信息")
+                    const msgTitle = "获取观演人信息错误"
+                    const msg = `${msgTitle}，请设置正确的信息`
+                    Message.error(msg)
+                    log.save(log.getTemplate('tip', msgTitle, 'error', msg));
                 }
             } else {
-                Message.error(joinMsg(["获取观演人信息错误", ...parseData.ret]));
+                const msgTitle = "获取观演人信息错误"
+                const msg = joinMsg([msgTitle, ...parseData.ret])
+                log.save(log.getTemplate('tip', msgTitle, 'error', msg));
+                Message.error(msg);
             }
         }
     } catch(e) {
-        Message.error(joinMsg(["观演人信息获取错误", JSON.stringify(e)]))
+        const msgTitle = "获取观演人信息错误"
+        const msg = joinMsg([msgTitle, e.toString()])
+        Message.error(msg)
+        log.save(log.getTemplate('tip', msgTitle, 'error', msg));
     } finally {
         isLoading.value = false
     }
@@ -133,7 +182,6 @@ function setLoading() {
     }
     isLoading.value = true
 
-    // TODO 更新后，清空选择状态
     getVisitUser()
 }
 
@@ -239,6 +287,38 @@ function userChange(valList) {
                     placeholder="请输入重试次数"
                     :max="4"
                 />
+            </a-form-item>
+
+            <a-form-item
+                :validate-status="proxyStatus"
+                feedback
+                field="isUseProxy"
+                label="使用代理"
+                required
+            >
+                <a-switch
+                    v-model="form.isUseProxy"
+                    style="margin-right: 10px"
+                />
+                <div style="width: 260px" v-show="form.isUseProxy">
+                    <a-input
+                        disabled
+                        v-model="form.proxy"
+                        placeholder="请在页面的最上方，设置代理"
+                    ></a-input>
+
+                    <!-- <a-button type="primary" @click="checkProxy">验证</a-button> -->
+                </div>
+            </a-form-item>
+
+            <a-form-item required label="间隔时间ms">
+                <template #extra>
+                    <div>
+                        发送订单时，如果失败第二次请求的时间（可防止过快出现滑块）1000ms
+                        = 1s
+                    </div>
+                </template>
+                <a-input-number v-model="form.interval"></a-input-number>
             </a-form-item>
 
             <a-form-item>

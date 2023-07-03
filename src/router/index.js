@@ -16,14 +16,14 @@ export const routes = [
             name: "大麦",
         },
     },
-    {
-        path: "/my",
-        name: "my",
-        component: () => import("../views/my.vue"),
-        meta: {
-            name: "猫眼",
-        },
-    },
+    // {
+    //     path: "/my",
+    //     name: "my",
+    //     component: () => import("../views/my.vue"),
+    //     meta: {
+    //         name: "猫眼",
+    //     },
+    // },
 ];
 
 export default createRouter({

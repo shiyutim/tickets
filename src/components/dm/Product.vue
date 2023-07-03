@@ -17,7 +17,7 @@ import { WebviewWindow, appWindow } from '@tauri-apps/api/window'
 import { confirm } from '@tauri-apps/api/dialog';
 import dayjs from 'dayjs';
 import { useStore } from 'vuex'
-import Log from '../../../utils/dm/log.js'
+import Log from '../../../utils/common/log.js'
 
 const store = useStore()
 const log = new Log()
@@ -47,6 +47,8 @@ async function getProductInfo() {
             sign,
             itemid: form.value.itemId,
             cookie: form.value.cookie.trim(),
+            isProxy: form.value.isUseProxy,
+            address: form.value.proxy,
         });
 
         const parseData = JSON.parse(res);
@@ -87,7 +89,8 @@ async function getProductInfo() {
                 Message.error("获取商品详情失败");
             }
     } catch (e) {
-        Message.error(joinMsg(["获取商品详情失败", JSON.stringify(e)]));
+        console.log('e', e)
+        Message.error(joinMsg(["获取商品详情失败", e.toString()]));
     }
 }
 
@@ -116,6 +119,8 @@ async function getSkuInfo(item) {
             itemid: form.value.itemId,
             cookie: form.value.cookie,
             dataid: performId,
+            isProxy: form.value.isUseProxy,
+            address: form.value.proxy,
         });
 
         const parseData = JSON.parse(res);
@@ -134,7 +139,7 @@ async function getSkuInfo(item) {
             }
         }
     } catch (e) {
-        Message.error(joinMsg(["票档获取失败，请重试", JSON.stringify(e)]));
+        Message.error(joinMsg(["票档获取失败，请重试", e.toString()]));
     }
 }
 
@@ -145,7 +150,7 @@ function saveSku(item) {
 const isDetailRetry = ref(false)
 // 获取订单详情
 async function getOrderDetail(item) {
-    const data = `{"buyNow":true,"exParams":"{\\"channel\\":\\"damai_app\\",\\"damai\\":\\"1\\",\\"umpChannel\\":\\"100031004\\",\\"subChannel\\":\\"damai@damaih5_h5\\",\\"atomSplit\\":1,\\"serviceVersion\\":\\"2.0.0\\",\\"customerType\\":\\"default\\"}","buyParam":"${item.itemId}_${form.value.num}_${item.skuId}","dmChannel":"damai@damaih5_h5"}`;
+    const data = `{"buyNow":true,"exParams":"{\\"channel\\":\\"damai_app\\",\\"damai\\":\\"1\\",\\"umpChannel\\":\\"100031004\\",\\"subChannel\\":\\"damai@weixin_gzh\\",\\"atomSplit\\":1,\\"serviceVersion\\":\\"2.0.0\\",\\"customerType\\":\\"default\\"}","buyParam":"${item.itemId}_${form.value.num}_${item.skuId}","dmChannel":"damai@damaih5_h5"}`;
 
     const [t, sign] = getSign(data, form.value.token);
     const [ua, umidtoken] = getHeaderUaAndUmidtoken();
@@ -159,6 +164,8 @@ async function getOrderDetail(item) {
             data,
             ua,
             umidtoken,
+            isProxy: form.value.isUseProxy,
+            address: form.value.proxy,
         });
 
         const parseData = JSON.parse(res);
@@ -190,7 +197,7 @@ async function getOrderDetail(item) {
             }
         }
     } catch (e) {
-        const newMsg = joinMsg(["订单详情获取失败，请重试", JSON.stringify(e)])
+        const newMsg = joinMsg(["订单详情获取失败，请重试", e.toString()])
         Message.error(newMsg)
         // 没有重试过，才进入
         if(!isDetailRetry.value) {
@@ -227,6 +234,8 @@ async function createOrder(data, submitref) {
             sign,
             data: lastData,
             submitref,
+            isProxy: form.value.isUseProxy,
+            address: form.value.proxy,
         });
 
         const parseData = JSON.parse(res);
@@ -263,7 +272,10 @@ async function createOrder(data, submitref) {
                 // 只要没有抢票成功，就重新创建订单
                 if(currentRetryCount.value) {
                     currentRetryCount.value =  currentRetryCount.value - 1
-                    createOrder(data, submitref)
+                    // 间隔时间后，再次创建
+                    setTimeout(() => {
+                        createOrder(data, submitref)
+                    }, form.value.interval)
                 } else {
                     // loading 取消
                     isRob.value = false
@@ -271,7 +283,7 @@ async function createOrder(data, submitref) {
             }
         }
     } catch (e) {
-        const newMsg = joinMsg(["订单发送失败，请重试", JSON.stringify(e)])
+        const newMsg = joinMsg(["订单发送失败，请重试", e.toString()])
         log.save(log.getTemplate('tip', '订单创建失败', 'error', newMsg))
         Message.error(newMsg)
 

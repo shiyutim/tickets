@@ -43,6 +43,8 @@ async function getVisitUser() {
             sign,
             cookie: form.value.cookie,
             data,
+            isProxy: form.value.isUseProxy,
+            address: form.value.proxy,
         })
 
         const parseData = JSON.parse(res)
@@ -51,7 +53,6 @@ async function getVisitUser() {
             commonTip(message);
 
             if (isSuccess(message)) {
-                console.log('parseData', parseData)
                 const result = parseData.data.result
                 if(Array.isArray(result) && result.length) {
                     saveStore(result)

@@ -17,11 +17,6 @@ export default {
         state.dm.selectVisitUserList = Array.isArray(payload) ? payload : [];
     },
     [SET_LOG](state, payload) {
-        const day = dayjs().format(`YYYY-MM-DD`);
-        if (state.dm.log[day]) {
-            state.dm.log[day].push(payload);
-        } else {
-            state.dm.log[day] = [payload];
-        }
+        state.dm.log.push(payload);
     },
 };

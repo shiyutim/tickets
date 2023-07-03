@@ -1,18 +1,19 @@
 <script setup lang="js">
 import { ref } from 'vue';
 import dayjs from 'dayjs'
-import Log from '../../../utils/dm/log';
+import Log from '../../../utils/common/log';
 import { WebviewWindow } from '@tauri-apps/api/window'
-import { Message } from '@arco-design/web-vue';
+import Qa from '../common/Qa.vue'
+
 const visible = ref(false);
 
 const log = new Log()
 
 const defaultValue = ref([dayjs().format('YYYY-MM-DD'), dayjs().format('YYYY-MM-DD')])
 
-function initLog() {
-    let res = log.getRangeDayStorage(new Date(defaultValue.value[0]), new Date(defaultValue.value[1]))
-    list.value = res.flat(Infinity).reverse();
+async function initLog() {
+    const res = await log.getRangeDayStorage(new Date(defaultValue.value[0]), new Date(defaultValue.value[1]))
+    list.value = res
 }
 
 function initDate() {
@@ -30,9 +31,9 @@ function handleCancel() {
 }
 
 const list = ref([])
-function onChange(dateString, date) {
-    let res = Array.isArray(dateString) && dateString.length ? log.getRangeDayStorage(new Date(dateString[0]), new Date(dateString[1])) : log.getAllStorageList()
-    list.value = res.flat(Infinity).reverse();
+async function onChange(dateString, date) {
+    const res = Array.isArray(dateString) && dateString.length ? await log.getRangeDayStorage(new Date(dateString[0]), new Date(dateString[1])) : await log.getAllStore()
+    list.value = res
 }
 
 function isShowTag(status) {
@@ -56,7 +57,6 @@ function getTagColor(status) {
 const timeWebview = ref(null)
 async function goTime() {
     if(timeWebview.value) {
-        console.log(timeWebview.value)
         return
     }
     timeWebview.value = new WebviewWindow('time', {
@@ -64,11 +64,16 @@ async function goTime() {
     })
 
     timeWebview.value.once('tauri://created', function () {
-        console.log("创建成功")
     })
     timeWebview.value.once('tauri://error', function (e) {
         Message.error("窗口创建失败，请手动访问 http://time.tianqi.com/或百度搜索 北京时间，自行查看校准")
     })
+}
+
+const qaRef = ref(null)
+
+function showQa() {
+    qaRef.value.showModal()
 }
 </script>
 
@@ -77,7 +82,13 @@ async function goTime() {
         <a-button style="margin-right: 10px" type="primary" @click="showLog"
             >查看日志</a-button
         >
-        <a-button type="primary" @click="goTime">校准时间</a-button>
+        <a-button style="margin-right: 10px" type="primary" @click="goTime"
+            >校准时间</a-button
+        >
+
+        <a-button style="margin-right: 10px" type="primary" @click="showQa"
+            >QA</a-button
+        >
 
         <a-drawer
             :footer="false"
@@ -86,7 +97,7 @@ async function goTime() {
             @cancel="handleCancel"
             unmountOnClose
         >
-            <template #title> 操作日志（暂时） </template>
+            <template #title> 操作日志 </template>
             <div>
                 <div style="margin-bottom: 10px">
                     <a-range-picker
@@ -121,6 +132,8 @@ async function goTime() {
                 <div v-else>暂无数据</div>
             </div>
         </a-drawer>
+
+        <Qa ref="qaRef"></Qa>
     </div>
 </template>
 
