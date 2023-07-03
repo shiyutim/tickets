@@ -19,7 +19,7 @@
 
 -   填入 cookie
 
-F12 打开控制台，在 network 下，找到对应的 http 请求，然后找到 cookie 选项，全部复制填入即可。
+F12 打开控制台，在 network 下，找到对应的 http 请求，然后找到 cookie 选项，全部复制填入即可（注意要复制全）。
 ![商品](./images/product.jpg)
 
 -   输入 itemId
