@@ -37,6 +37,11 @@ jobs:
                   release_name: "app ${{ steps.get_version.outputs.VERSION }}"
                   body: "See the assets to download this version and install."
 
+            - name: Reconfigure git to use HTTP authentication
+              run: >
+                  git config --global url."https://github.com/".insteadOf
+                  ssh://git@github.com/
+
     # 编译 Tauri
     build-tauri:
         needs: create-release
