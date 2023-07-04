@@ -9,7 +9,6 @@ import {
     settingTableName,
     changeLogTableName,
     initSettingTable,
-    execute,
     update,
 } from "./sql";
 import { IconSettings } from "@arco-design/web-vue/es/icon";
@@ -23,6 +22,8 @@ import Tip from "./components/common/Tip.vue";
 const log = new Log();
 
 onMounted(async () => {
+    // 初始化设置表
+    await initSettingTable();
     // 初始化表名（根据appid，如果不存在，则为默认`LOG`）
     await changeLogTableName();
 
@@ -32,8 +33,6 @@ onMounted(async () => {
     } catch (e) {
         console.log("初始化表失败", e);
     }
-    // 初始化设置表
-    await initSettingTable();
 
     // 初始化配置
     initSetting();

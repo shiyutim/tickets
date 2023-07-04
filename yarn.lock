@@ -593,7 +593,7 @@ strip-literal@^1.0.1:
   dependencies:
     acorn "^8.8.2"
 
-"tauri-plugin-sql-api@https://github.com/tauri-apps/tauri-plugin-sql#v1":
+"tauri-plugin-sql-api@https://github.com/tauri-apps/tauri-plugin-sql":
   version "0.0.0"
   resolved "git+ssh://git@github.com/tauri-apps/tauri-plugin-sql.git#45b46ee428f6c13a831d237d8b602349ad6b17a6"
   dependencies:

@@ -13,8 +13,15 @@ import {
 } from "../../../utils/dm/index.js";
 import Log from '../../../utils/common/log'
 
+import {
+    selectAll,
+    settingTableName,
+} from "../../sql";
+
 const store = useStore();
 const log = new Log();
+const retryMax = 10;
+const inputWidth = 320;
 
 const form = reactive({
     cookie: "",
@@ -29,10 +36,25 @@ const form = reactive({
     interval: 1000, // 间隔时间
 });
 
-function loadProxy() {
-    const proxy = localStorage.getItem("proxy");
+// 加载设置的代理
+async function loadProxy() {
+    const res = await getSetting();
+    if(!res) return
 
-    proxy && (form.proxy = JSON.parse(proxy))
+    form.proxy = res.proxy
+}
+
+async function getSetting() {
+    try {
+        const res = await selectAll(settingTableName);
+        if (Array.isArray(res) && res.length) {
+            return res[0];
+        }
+    } catch (e) {
+        console.log(e);
+    }
+
+    return null;
 }
 
 const proxyStatus = ref('')
@@ -201,35 +223,49 @@ function userChange(valList) {
                 <template #extra>
                     <div>进入商品页面，http请求头里的cookie</div>
                 </template>
-                <a-textarea
-                    v-model="form.cookie"
-                    placeholder="请输入 cookie"
-                    allow-clear
-                />
+                <div :style="{ width: inputWidth + 'px' }">
+                    <!-- <div style="width: 400px"> -->
+                    <a-textarea
+                        v-model="form.cookie"
+                        placeholder="请输入 cookie"
+                        allow-clear
+                    />
+                </div>
             </a-form-item>
 
             <a-form-item field="url" label="url">
-                <a-input v-model="form.url" placeholder="请输入商品详情页url">
-                </a-input>
+                <div :style="{ width: inputWidth + 'px' }">
+                    <a-input
+                        v-model="form.url"
+                        placeholder="请输入商品详情页url"
+                    />
+                </div>
             </a-form-item>
 
             <a-form-item field="itemId" label="itemId" required>
                 <template #extra>
                     <div>进入商品页面，页面路径上的 itemId</div>
                 </template>
-                <a-input v-model="form.itemId" placeholder="请输入itemId..." />
+                <div :style="{ width: inputWidth + 'px' }">
+                    <a-input
+                        v-model="form.itemId"
+                        placeholder="请输入itemId..."
+                    />
+                </div>
             </a-form-item>
 
             <a-form-item field="num" label="购买张数" required>
                 <template #extra>
                     <div>需要与选择实名信息一致</div>
                 </template>
-                <a-input-number
-                    v-model="form.num"
-                    placeholder="请输入购买数量..."
-                    :min="1"
-                    model-event="input"
-                />
+                <div :style="{ width: inputWidth + 'px' }">
+                    <a-input-number
+                        v-model="form.num"
+                        placeholder="请输入购买数量..."
+                        :min="1"
+                        model-event="input"
+                    />
+                </div>
             </a-form-item>
             <a-form-item field="selectVisitUserList" label="观演人" required>
                 <a-checkbox-group
@@ -280,13 +316,15 @@ function userChange(valList) {
             </a-form-item>
             <a-form-item field="retry" label="重试次数" required>
                 <template #extra>
-                    <div>下订单失败的重试次数</div>
+                    <div>下订单失败的重试次数，最大可设置{{ retryMax }}</div>
                 </template>
-                <a-input-number
-                    v-model="form.retry"
-                    placeholder="请输入重试次数"
-                    :max="10"
-                />
+                <div :style="{ width: inputWidth + 'px' }">
+                    <a-input-number
+                        v-model="form.retry"
+                        placeholder="请输入重试次数"
+                        :max="retryMax"
+                    />
+                </div>
             </a-form-item>
 
             <a-form-item
@@ -304,7 +342,7 @@ function userChange(valList) {
                     <a-input
                         disabled
                         v-model="form.proxy"
-                        placeholder="请在页面的最上方，设置代理"
+                        placeholder="请先设置代理"
                     ></a-input>
 
                     <!-- <a-button type="primary" @click="checkProxy">验证</a-button> -->
@@ -318,7 +356,9 @@ function userChange(valList) {
                         = 1s
                     </div>
                 </template>
-                <a-input-number v-model="form.interval"></a-input-number>
+                <div :style="{ width: inputWidth + 'px' }">
+                    <a-input-number v-model="form.interval"></a-input-number>
+                </div>
             </a-form-item>
 
             <a-form-item>

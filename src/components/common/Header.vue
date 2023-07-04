@@ -57,7 +57,7 @@ function getTagColor(status) {
 const timeWebview = ref(null)
 async function goTime() {
     if(timeWebview.value) {
-        return
+        timeWebview.value = null
     }
     timeWebview.value = new WebviewWindow('time', {
         url: 'http://time.tianqi.com/',
@@ -83,7 +83,7 @@ function showQa() {
             >查看日志</a-button
         >
         <a-button style="margin-right: 10px" type="primary" @click="goTime"
-            >校准时间</a-button
+            >北京时间</a-button
         >
 
         <a-button style="margin-right: 10px" type="primary" @click="showQa"
