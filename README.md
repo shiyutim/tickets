@@ -13,6 +13,7 @@
 1. 安装 rust `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh` [rust 官网](https://www.rust-lang.org/tools/install) (输入 `rustc -V` 显示版本号，则表示安装成功)
 2. 安装 node [node 官网](https://nodejs.org/en) (输入 ` node -v` 显示版本号，则表示安装成功)
 3. 运行 `yarn install` 安装依赖
+4. 运行 `yarn tauri dev` 启动本地项目（如果windows系统，可能需要准备 tauri 需要的[环境](https://tauri.app/zh-cn/v1/guides/getting-started/prerequisites/)），使用**编译的app**来进行调试。
 4. 运行 `yarn tauri build` 打包程序。生成的程序在 src-tauri/target/release 下。
 
 ## 使用
