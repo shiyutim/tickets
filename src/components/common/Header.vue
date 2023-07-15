@@ -4,6 +4,9 @@ import dayjs from 'dayjs'
 import Log from '../../../utils/common/log';
 import { WebviewWindow } from '@tauri-apps/api/window'
 import Qa from '../common/Qa.vue'
+import { open } from '@tauri-apps/api/dialog'
+import { getAppId } from '../../sql/index'
+import { invoke } from '@tauri-apps/api'
 
 const visible = ref(false);
 
@@ -75,6 +78,36 @@ const qaRef = ref(null)
 function showQa() {
     qaRef.value.showModal()
 }
+
+async function exportLog() {
+    const selected = await open({
+        multiple: false,
+        directory: true
+    });
+
+    if(selected) {
+        const path = `${selected}/${await getExportLogName()}`
+        try {
+            const res = await invoke("export_sql_to_txt", {
+                path,
+                data: JSON.stringify(await log.getAllStore())
+            })
+            if(res.includes('success')) {
+                Message.success(`导出成功，路径为 ${path}`)
+            } else {
+                Message.error(res)
+            }
+        } catch(e) {
+            console.log(e)
+        }
+
+    }
+}
+
+async function getExportLogName() {
+    const appId = await getAppId()
+    return `${appId}_log.txt`
+}
 </script>
 
 <template>
@@ -105,6 +138,7 @@ function showQa() {
                         style="width: 254px; marginbottom: 20px"
                         :defaultValue="defaultValue"
                     />
+                    <a-button type="primary" shape="circle" @click="exportLog">导出</a-button>
                 </div>
 
                 <div v-if="Array.isArray(list) && list.length">

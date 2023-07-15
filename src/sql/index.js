@@ -10,26 +10,35 @@ export let logTableName = "LOG";
 // 全局setting表名称
 export const settingTableName = "SETTINGS";
 
+// 获取 appid
+export const getAppId = async () => {
+    const res = await selectAll(settingTableName);
+    if(Array.isArray(res) && res.length) {
+        return res[0].appid
+    }
+
+    return ''
+}
+
 // 修改log 表名
 // 表名通过数据库中取
 export const changeLogTableName = async () => {
     await initDb();
-    // 读取settings
-    // 取appid
     // 设置唯一表名
-    const res = await selectAll(settingTableName);
-
-    if (Array.isArray(res) && res.length) {
-        if (res[0] && res[0].appid) {
-            logTableName = `${res[0].appid}_LOG`;
-        }
+    const appId = await getAppId()
+    if(appId) {
+        logTableName = `${appId}_LOG`;
     }
 };
+
+export const dbPath = async () => {
+    return `sqlite:${await appConfigDir()}${dbName}`
+}
 
 // 初始化数据库
 export const initDb = async () => {
     if (db) return;
-    db = await Database.load(`sqlite:${await appConfigDir()}${dbName}`);
+    db = await Database.load(await dbPath());
 };
 
 // 初始化 日志表

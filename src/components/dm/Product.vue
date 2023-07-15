@@ -1,5 +1,5 @@
 <script setup lang="js">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import {
     getSign,
     getHeaderUaAndUmidtoken,
@@ -50,6 +50,7 @@ async function getProductInfo() {
             isProxy: form.value.isUseProxy,
             address: form.value.proxy,
         });
+        console.log('get_product_info', res)
 
         const parseData = JSON.parse(res);
         if (Array.isArray(parseData.ret) && parseData.ret.length) {
@@ -63,38 +64,38 @@ async function getProductInfo() {
                     : "";
                 result = result.detailViewComponentMap.item || {}
 
-                    if (result.item.buyBtnStatus === "303") {
-                        // 下架
-                        Message.warning(`商品已下架`);
-                        return;
-                    } else if(result.item.buyBtnStatus === "100") {
-                        // 不支持该渠道
-                        Message.error(joinMsg([result.item.buyBtnText, result.item.buyBtnTips]))
-                        return
-                    } else if(result.item.buyBtnStatus === "106") {
-                        // 即将开抢
-                        countDownVal.value = Number(result.item.sellStartTime);
+                if (result.item.buyBtnStatus === "303") {
+                    // 下架
+                    Message.warning(`商品已下架`);
+                    return;
+                } else if (result.item.buyBtnStatus === "100") {
+                    // 不支持该渠道
+                    Message.error(joinMsg([result.item.buyBtnText, result.item.buyBtnTips]))
+                    return
+                } else if (result.item.buyBtnStatus === "106") {
+                    // 即将开抢
+                    countDownVal.value = Number(result.item.sellStartTime);
 
-                        // 如果预售的商品开售，则直接显示购买
-                        if(countDownVal.value > Date.now()) {
-                            isPreSell.value = true
-                            isShowCountDown.value = true;
-                        } else {
-                            isPreSell.value = false
-                        }
+                    // 如果预售的商品开售，则直接显示购买
+                    if (countDownVal.value > Date.now()) {
+                        isPreSell.value = true
+                        isShowCountDown.value = true;
+                    } else {
+                        isPreSell.value = false
                     }
-                    productInfo.value = result;
                 }
-            } else {
-                Message.error("获取商品详情失败");
+                productInfo.value = result;
             }
+        } else {
+            Message.error("获取商品详情失败");
+        }
     } catch (e) {
         console.log('e', e)
         Message.error(joinMsg(["获取商品详情失败", e.toString()]));
     }
 }
 
-defineExpose({getProductInfo})
+defineExpose({ getProductInfo })
 
 // sku列表，获取票档等信息
 const skuInfo = reactive({});
@@ -183,7 +184,7 @@ async function getOrderDetail(item) {
                 Message.error(newMsg);
 
                 // 没有重试过，才进入
-                if(!isDetailRetry.value) {
+                if (!isDetailRetry.value) {
                     Message.warning("检测到商品详情获取失败，将再次重新获取，如果再次失败，则停止购票")
 
                     log.save(log.getTemplate('tip', '订单详情获取失败', 'error', newMsg))
@@ -200,7 +201,7 @@ async function getOrderDetail(item) {
         const newMsg = joinMsg(["订单详情获取失败，请重试", e.toString()])
         Message.error(newMsg)
         // 没有重试过，才进入
-        if(!isDetailRetry.value) {
+        if (!isDetailRetry.value) {
             Message.warning("检测到商品详情获取失败，将再次重新获取，如果再次失败，则停止购票")
 
             log.save(log.getTemplate('tip', '订单详情获取失败', 'error', newMsg))
@@ -216,6 +217,7 @@ async function getOrderDetail(item) {
     }
 }
 
+const successVisible = ref(false)
 const currentRetryCount = ref(0)
 // 下订单（对应提交订单按钮）
 async function createOrder(data, submitref) {
@@ -245,8 +247,9 @@ async function createOrder(data, submitref) {
             commonTip(message);
 
             if (isSuccess(message)) {
+                playAudio()
                 const msg = "购买成功!!!，请在订单页进行支付"
-                Message.success(msg);
+                successVisible.value = true
                 log.save(log.getTemplate('tip', '购买成功', 'success', msg))
                 isRob.value = false
             } else {
@@ -256,22 +259,22 @@ async function createOrder(data, submitref) {
 
                 // 重新下订单过滤条件
                 // 1. 已经有订单
-                if(msg.includes(HAVE_ORDER)) {
+                if (msg.includes(HAVE_ORDER)) {
                     const newMsg = '检测到已有订单，即将退出抢票'
                     log.save(log.getTemplate('tip', '已有订单', 'error', newMsg))
                     return
                 }
-                // 2. 账号被限制
-                if(msg.includes(VALIDATE)) {
-                    const newMsg = '检测到账号已被限制，请重新生成 cookie，即将退出抢票'
+                // 2. 滑块
+                if (msg.includes(VALIDATE)) {
+                    const newMsg = '检测到因频繁请求导致出现滑块，请重新生成 cookie，即将退出抢票'
                     Message.error(newMsg)
-                    log.save(log.getTemplate('tip', '账号被限制', 'error', newMsg))
+                    log.save(log.getTemplate('tip', '滑块', 'error', newMsg))
                     return
                 }
 
                 // 只要没有抢票成功，就重新创建订单
-                if(currentRetryCount.value) {
-                    currentRetryCount.value =  currentRetryCount.value - 1
+                if (currentRetryCount.value) {
+                    currentRetryCount.value = currentRetryCount.value - 1
                     // 间隔时间后，再次创建
                     setTimeout(() => {
                         createOrder(data, submitref)
@@ -336,7 +339,7 @@ function checkTime() {
     const diff = lastCountDownVal.value - Date.now()
     const oneHour = 1000 * 60 * 60
 
-    if(diff > oneHour) {
+    if (diff > oneHour) {
         Notification.info({
             title: "提示：抢票时间尽量在一个小时内，并使用最新的 cookie，否则可能导致抢票失败",
             duration: 5000
@@ -351,7 +354,7 @@ const isFinish = ref(false)
 async function countDownFinished() {
     isFinish.value = true;
 
-    if(isRob.value) {
+    if (isRob.value) {
         Notification.info(`开始抢票，当前时间为：${dayjs().format('hh:mm:ss:SSS')}`)
         log.save(log.getTemplate('tip', '开始抢票'))
         buy()
@@ -363,7 +366,7 @@ async function countDownFinished() {
 async function injectCloseTip() {
     // 如果抢票中，才提示
     await appWindow.onCloseRequested(async (event) => {
-        if(!isFinish.value) return
+        if (!isFinish.value) return
         const confirmed = await confirm('检测到正在抢票，退出将结束抢票，确定要退出抢票吗?');
         if (!confirmed) {
             // user did not confirm closing the window; let's prevent it
@@ -371,6 +374,14 @@ async function injectCloseTip() {
         }
     });
 }
+
+async function playAudio() {
+    const audio = document.querySelector('.success-audio')
+    if(!audio) return
+
+    let res = await audio.play()
+}
+
 </script>
 
 <template>
@@ -379,49 +390,21 @@ async function injectCloseTip() {
         <div v-if="productInfo">
             <div class="info-wrap" v-if="productInfo.staticData">
                 <div class="left">
-                    <img
-                        class="img"
-                        :src="productInfo.staticData.itemBase.itemPic"
-                    />
+                    <img class="img" :src="productInfo.staticData.itemBase.itemPic" />
 
                     <div v-if="isShowCountDown">
                         修正时间(毫秒)：
-                        <a-input-number
-                            v-model="timeFix"
-                            :style="{ width: '200px' }"
-                            placeholder="倒计时修正时间"
-                        />
+                        <a-input-number v-model="timeFix" :style="{ width: '200px' }" placeholder="倒计时修正时间" />
                     </div>
                     <div>
-                        <a-countdown
-                            v-if="isShowCountDown"
-                            title="开售倒计时"
-                            :value="lastCountDownVal"
-                            :now="Date.now()"
-                            format="HH:mm:ss.SSS"
-                            @finish="countDownFinished"
-                        />
+                        <a-countdown v-if="isShowCountDown" title="开售倒计时" :value="lastCountDownVal" :now="Date.now()"
+                            format="HH:mm:ss.SSS" @finish="countDownFinished" />
                     </div>
 
-                    <a-button
-                        v-if="isPreSell"
-                        style="margin-bottom: 10px"
-                        type="primary"
-                        status="success"
-                        @click="rob"
-                        :loading="isRob"
-                        :disabled="!activeSku"
-                        >抢票</a-button
-                    >
-                    <a-button
-                        v-else
-                        style="margin-bottom: 10px"
-                        type="primary"
-                        status="normal"
-                        @click="buy"
-                        :disabled="!activeSku"
-                        >购票</a-button
-                    >
+                    <a-button v-if="isPreSell" style="margin-bottom: 10px" type="primary" status="success" @click="rob"
+                        :loading="isRob" :disabled="!activeSku">抢票</a-button>
+                    <a-button v-else style="margin-bottom: 10px" type="primary" status="normal" @click="buy"
+                        :disabled="!activeSku">购票</a-button>
                 </div>
 
                 <div class="right">
@@ -451,52 +434,33 @@ async function injectCloseTip() {
 
                     <h4>场次</h4>
                     <div class="ticket-list">
-                        <div
-                            v-for="item in productInfo.item.performBases"
-                            class="ticket-item"
-                            @click="getSkuInfo(item)"
-                        >
+                        <div :key="index" v-for="(item, index) in productInfo.item.performBases" class="ticket-item"
+                            @click="getSkuInfo(item)">
                             <div class="ticket-item-head">
                                 {{ item.name }}
 
-                                <a-tag
-                                    v-if="item.performBaseTagDesc"
-                                    :color="
-                                        item.performBaseTagDesc === '无票'
-                                            ? '#f53f3f'
-                                            : ''
-                                    "
-                                >
+                                <a-tag v-if="item.performBaseTagDesc" :color="item.performBaseTagDesc === '无票'
+                                    ? '#f53f3f'
+                                    : ''
+                                    ">
                                     {{ item.performBaseTagDesc }}
                                 </a-tag>
                             </div>
 
-                            <div
-                                class="sku"
-                                v-if="skuInfo[item.performs[0].performId]"
-                            >
+                            <div class="sku" v-if="skuInfo[item.performs[0].performId]">
                                 <h4>票档</h4>
-                                <div
-                                    class="sku-item"
-                                    :class="{
-                                        'active-sku':
-                                            activeSku &&
-                                            activeSku.skuId === sku.skuId,
-                                    }"
-                                    v-for="sku in skuInfo[
-                                        item.performs[0].performId
-                                    ].perform.skuList"
-                                    @click="saveSku(sku)"
-                                >
+                                <div class="sku-item" :class="{
+                                    'active-sku':
+                                        activeSku &&
+                                        activeSku.skuId === sku.skuId,
+                                }" :key="idx" v-for="(sku, idx) in skuInfo[
+            item.performs[0].performId
+        ].perform.skuList" @click="saveSku(sku)">
                                     <div>{{ sku.priceName }}</div>
                                     <div>{{ sku.price }}</div>
-                                    <div
-                                        class="tag"
-                                        v-if="
-                                            Array.isArray(sku.tags) &&
-                                            sku.tags.length
-                                        "
-                                    >
+                                    <div class="tag" v-if="Array.isArray(sku.tags) &&
+                                        sku.tags.length
+                                        ">
                                         <a-tag color="#f53f3f">{{
                                             sku.tags[0].tagDesc
                                         }}</a-tag>
@@ -509,6 +473,19 @@ async function injectCloseTip() {
             </div>
         </div>
         <div v-else>请填写表单以获取商品信息</div>
+
+
+        <a-modal v-model:visible="successVisible">
+            <template #title>
+                购买成功
+            </template>
+            <div>购买成功，请在订单页进行支付吧</div>
+        </a-modal>
+
+        <audio class="success-audio" controls>
+            <source src="../../assets/success-audio.mp3" type="audio/mpeg">
+            您的浏览器不支持该音频格式。
+        </audio>
     </section>
 </template>
 
@@ -516,23 +493,28 @@ async function injectCloseTip() {
 .product-wrap {
     padding: 20px;
 }
+
 .info-wrap {
     display: flex;
     flex-flow: row nowrap;
 }
+
 .left {
     margin-right: 20px;
+
     .img {
         width: 250px;
         height: 350px;
     }
 }
+
 .column {
     display: flex;
     flex-flow: row nowrap;
     align-items: center;
 
     margin-bottom: 20px;
+
     &:last-child {
         margin-bottom: 0;
     }
@@ -552,8 +534,10 @@ async function injectCloseTip() {
     display: flex;
     flex-flow: row nowrap;
 }
+
 .ticket-item {
     margin-right: 20px;
+
     &-head {
         border: 1px solid #ccc;
         width: 200px;
@@ -562,6 +546,7 @@ async function injectCloseTip() {
 
         text-align: center;
         cursor: pointer;
+
         &:hover {
             background: #eee;
         }
@@ -579,7 +564,12 @@ async function injectCloseTip() {
         color: #ff0000;
     }
 }
+
 .active-sku {
     background: #eee;
+}
+
+.success-audio {
+    display: none;
 }
 </style>

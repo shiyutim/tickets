@@ -7,27 +7,21 @@ use std::error::Error;
 use std::time::Duration;
 use tauri::Manager;
 use tickets::proxy_builder::ProxyBuilder;
-use tickets::version;
-
-// #[derive(Debug)]
-// struct ProductInfo {
-//     t: usize,
-//     sign: String,
-// }
+use tickets::utils;
 
 #[tauri::command]
-fn get_product_info(
+async fn get_product_info(
     t: usize,
     sign: &str,
     itemid: &str,
     cookie: &str,
     is_proxy: bool,
     address: String,
-) -> String {
-    let res = get_info(t, sign, itemid, cookie, is_proxy, address);
+) -> Result<String, ()> {
+    let res = get_info(t, sign, itemid, cookie, is_proxy, address).await;
     match res {
-        Err(e) => String::from(format!("数据获取失败 {}", e)),
-        Ok(s) => s,
+        Ok(s) => Ok(s),
+        Err(e) => Ok(e.to_string()),
     }
 }
 
@@ -56,7 +50,6 @@ fn get_common_headers() -> HeaderMap {
     headers
 }
 
-#[tokio::main]
 async fn get_info(
     t: usize,
     sign: &str,
@@ -88,7 +81,7 @@ async fn get_info(
 }
 
 #[tauri::command]
-fn get_ticket_list(
+async fn get_ticket_list(
     t: usize,
     sign: &str,
     itemid: &str,
@@ -96,15 +89,14 @@ fn get_ticket_list(
     dataid: &str,
     is_proxy: bool,
     address: String,
-) -> String {
-    let res = get_ticket_list_res(t, sign, itemid, cookie, dataid, is_proxy, address);
+) -> Result<String, ()> {
+    let res = get_ticket_list_res(t, sign, itemid, cookie, dataid, is_proxy, address).await;
     match res {
-        Err(e) => e.to_string(),
-        Ok(msg) => msg,
+        Ok(s) => Ok(s),
+        Err(e) => Ok(e.to_string()),
     }
 }
 
-#[tokio::main]
 async fn get_ticket_list_res(
     t: usize,
     sign: &str,
@@ -137,7 +129,7 @@ async fn get_ticket_list_res(
 }
 
 #[tauri::command]
-fn get_ticket_detail(
+async fn get_ticket_detail(
     t: usize,
     sign: &str,
     cookie: &str,
@@ -146,15 +138,14 @@ fn get_ticket_detail(
     umidtoken: &str,
     is_proxy: bool,
     address: String,
-) -> String {
-    let res = get_ticket_detail_res(t, sign, cookie, data, ua, umidtoken, is_proxy, address);
+) -> Result<String, ()> {
+    let res = get_ticket_detail_res(t, sign, cookie, data, ua, umidtoken, is_proxy, address).await;
     match res {
-        Err(e) => e.to_string(),
-        Ok(msg) => msg,
+        Ok(s) => Ok(s),
+        Err(e) => Ok(e.to_string()),
     }
 }
 
-#[tokio::main]
 async fn get_ticket_detail_res(
     t: usize,
     sign: &str,
@@ -193,7 +184,7 @@ async fn get_ticket_detail_res(
 }
 
 #[tauri::command]
-fn create_order(
+async fn create_order(
     t: usize,
     sign: &str,
     cookie: &str,
@@ -201,18 +192,14 @@ fn create_order(
     submitref: &str,
     is_proxy: bool,
     address: String,
-) -> String {
-    let res = create_order_res(t, sign, cookie, data, submitref, is_proxy, address);
+) -> Result<String, ()> {
+    let res = create_order_res(t, sign, cookie, data, submitref, is_proxy, address).await;
     match res {
-        Ok(res) => res,
-        Err(err) => {
-            println!("error: {:#?}", err);
-            String::from("数据获取失败") // TODO
-        }
+        Ok(s) => Ok(s),
+        Err(e) => Ok(e.to_string()),
     }
 }
 
-#[tokio::main]
 async fn create_order_res(
     t: usize,
     sign: &str,
@@ -246,23 +233,22 @@ async fn create_order_res(
 }
 
 #[tauri::command]
-fn get_user_list(
+async fn get_user_list(
     t: usize,
     sign: &str,
     cookie: &str,
     data: &str,
     is_proxy: bool,
     address: String,
-) -> String {
-    let res = get_user_list_res(t, sign, cookie, data, is_proxy, address);
+) -> Result<String, ()> {
+    let res = get_user_list_res(t, sign, cookie, data, is_proxy, address).await;
 
     match res {
-        Err(e) => String::from("数据观演人信息错误"),
-        Ok(data) => data,
+        Ok(s) => Ok(s),
+        Err(e) => Ok(e.to_string()),
     }
 }
 
-#[tokio::main]
 async fn get_user_list_res(
     t: usize,
     sign: &str,
@@ -310,7 +296,8 @@ fn main() {
             get_ticket_detail,
             create_order,
             get_user_list,
-            crate::version::get_repo_version,
+            // version::get_repo_version,
+            utils::export_sql_to_txt,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
