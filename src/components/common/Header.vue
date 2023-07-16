@@ -138,7 +138,7 @@ async function getExportLogName() {
                         style="width: 254px; marginbottom: 20px"
                         :defaultValue="defaultValue"
                     />
-                    <a-button type="primary" shape="circle" @click="exportLog">导出</a-button>
+                    <a-button style="margin-left: 3px" type="primary" shape="circle" @click="exportLog">导出</a-button>
                 </div>
 
                 <div v-if="Array.isArray(list) && list.length">

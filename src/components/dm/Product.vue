@@ -50,7 +50,7 @@ async function getProductInfo() {
             isProxy: form.value.isUseProxy,
             address: form.value.proxy,
         });
-        console.log('get_product_info', res)
+        // console.log('get_product_info', res)
 
         const parseData = JSON.parse(res);
         if (Array.isArray(parseData.ret) && parseData.ret.length) {
@@ -366,7 +366,7 @@ async function countDownFinished() {
 async function injectCloseTip() {
     // 如果抢票中，才提示
     await appWindow.onCloseRequested(async (event) => {
-        if (!isFinish.value) return
+        if(!isRob.value) return
         const confirmed = await confirm('检测到正在抢票，退出将结束抢票，确定要退出抢票吗?');
         if (!confirmed) {
             // user did not confirm closing the window; let's prevent it
