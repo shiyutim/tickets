@@ -50,7 +50,6 @@ async function getProductInfo() {
             isProxy: form.value.isUseProxy,
             address: form.value.proxy,
         });
-        // console.log('get_product_info', res)
 
         const parseData = JSON.parse(res);
         if (Array.isArray(parseData.ret) && parseData.ret.length) {
@@ -90,7 +89,6 @@ async function getProductInfo() {
             Message.error("获取商品详情失败");
         }
     } catch (e) {
-        console.log('e', e)
         Message.error(joinMsg(["获取商品详情失败", e.toString()]));
     }
 }
@@ -144,14 +142,17 @@ async function getSkuInfo(item) {
     }
 }
 
-function saveSku(item) {
-    activeSku.value = item
+function saveSku(item, performId) {
+    activeSku.value = {
+        ...item,
+        signKey: skuInfo[performId].itemBasicInfo.t
+    }
 }
 
 const isDetailRetry = ref(false)
 // 获取订单详情
 async function getOrderDetail(item) {
-    const data = `{"buyNow":true,"exParams":"{\\"channel\\":\\"damai_app\\",\\"damai\\":\\"1\\",\\"umpChannel\\":\\"100031004\\",\\"subChannel\\":\\"damai@weixin_gzh\\",\\"atomSplit\\":1,\\"serviceVersion\\":\\"2.0.0\\",\\"customerType\\":\\"default\\"}","buyParam":"${item.itemId}_${form.value.num}_${item.skuId}","dmChannel":"damai@damaih5_h5"}`;
+    const data = `{"buyNow":true,"exParams":"{\\"channel\\":\\"damai_app\\",\\"damai\\":\\"1\\",\\"umpChannel\\":\\"100031004\\",\\"subChannel\\":\\"damai@damaih5_h5\\",\\"atomSplit\\":1,\\"signKey\\":\\"${item.signKey}\\",\\"rtc\\":1,\\"serviceVersion\\":\\"2.0.0\\",\\"customerType\\":\\"default\\"}","buyParam":"${item.itemId}_${form.value.num}_${item.skuId}","dmChannel":"damai@damaih5_h5"}`;
 
     const [t, sign] = getSign(data, form.value.token);
     const [ua, umidtoken] = getHeaderUaAndUmidtoken();
@@ -170,7 +171,6 @@ async function getOrderDetail(item) {
         });
 
         const parseData = JSON.parse(res);
-
         if (Array.isArray(parseData.ret) && parseData.ret.length) {
             const message = parseData.ret[0];
 
@@ -366,7 +366,7 @@ async function countDownFinished() {
 async function injectCloseTip() {
     // 如果抢票中，才提示
     await appWindow.onCloseRequested(async (event) => {
-        if(!isRob.value) return
+        if (!isRob.value) return
         const confirmed = await confirm('检测到正在抢票，退出将结束抢票，确定要退出抢票吗?');
         if (!confirmed) {
             // user did not confirm closing the window; let's prevent it
@@ -377,11 +377,10 @@ async function injectCloseTip() {
 
 async function playAudio() {
     const audio = document.querySelector('.success-audio')
-    if(!audio) return
+    if (!audio) return
 
     let res = await audio.play()
 }
-
 </script>
 
 <template>
@@ -440,9 +439,9 @@ async function playAudio() {
                                 {{ item.name }}
 
                                 <a-tag v-if="item.performBaseTagDesc" :color="item.performBaseTagDesc === '无票'
-                                    ? '#f53f3f'
-                                    : ''
-                                    ">
+            ? '#f53f3f'
+            : ''
+            ">
                                     {{ item.performBaseTagDesc }}
                                 </a-tag>
                             </div>
@@ -450,20 +449,20 @@ async function playAudio() {
                             <div class="sku" v-if="skuInfo[item.performs[0].performId]">
                                 <h4>票档</h4>
                                 <div class="sku-item" :class="{
-                                    'active-sku':
-                                        activeSku &&
-                                        activeSku.skuId === sku.skuId,
-                                }" :key="idx" v-for="(sku, idx) in skuInfo[
-            item.performs[0].performId
-        ].perform.skuList" @click="saveSku(sku)">
+            'active-sku':
+                activeSku &&
+                activeSku.skuId === sku.skuId,
+        }" :key="idx" v-for="(sku, idx) in skuInfo[
+                item.performs[0].performId
+            ].perform.skuList" @click="saveSku(sku, item.performs[0].performId)">
                                     <div>{{ sku.priceName }}</div>
                                     <div>{{ sku.price }}</div>
                                     <div class="tag" v-if="Array.isArray(sku.tags) &&
-                                        sku.tags.length
-                                        ">
+            sku.tags.length
+            ">
                                         <a-tag color="#f53f3f">{{
-                                            sku.tags[0].tagDesc
-                                        }}</a-tag>
+            sku.tags[0].tagDesc
+        }}</a-tag>
                                     </div>
                                 </div>
                             </div>
@@ -475,11 +474,11 @@ async function playAudio() {
         <div v-else>请填写表单以获取商品信息</div>
 
 
-        <a-modal v-model:visible="successVisible">
+        <a-modal v-model:visible="successVisible" :hideCancel="true">
             <template #title>
                 购买成功
             </template>
-            <div>购买成功，请在订单页进行支付吧</div>
+            <div>购买成功，请在<a target="_blank" href="https://orders.damai.cn/orderList">订单页</a>进行支付吧</div>
         </a-modal>
 
         <audio class="success-audio" controls>
