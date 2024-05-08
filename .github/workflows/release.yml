@@ -84,8 +84,8 @@ jobs:
                   version: v0.9.1
 
             # 可选，如果需要使用 rsw 构建 wasm，则安装 rsw
-            - name: Install rsw
-              run: cargo install rsw
+            # - name: Install rsw
+            #   run: cargo install rsw
 
             # 获取 yarn 缓存路径
             - name: Get yarn cache directory path
