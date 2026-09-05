@@ -3876,7 +3876,7 @@ dependencies = [
 
 [[package]]
 name = "tickets"
-version = "0.0.0"
+version = "0.6.0"
 dependencies = [
  "md5",
  "regex",

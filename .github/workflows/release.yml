@@ -1,112 +1,96 @@
-# 可选，将显示在 GitHub 存储库的“操作”选项卡中的工作流名称
 name: Release CI
 
-# 指定此工作流的触发器
 on:
-    push:
-        # 匹配特定标签 (refs/tags)
-        tags:
-            - "v*" # 推送事件匹配 v*, 例如 v1.0，v20.15.10 等来触发工作流
+  push:
+    tags:
+      - "v*"
 
-# 需要运行的作业组合
+permissions:
+  contents: write
+
 jobs:
-    # 任务：创建 release 版本
-    create-release:
-        runs-on: ubuntu-latest
-        outputs:
-            RELEASE_UPLOAD_ID: ${{ steps.create_release.outputs.id }}
+  create-release:
+    runs-on: ubuntu-22.04
+    outputs:
+      release-id: ${{ steps.release.outputs.result }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create or reuse release
+        id: release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = context.ref.replace('refs/tags/', '');
+            const { version } = require('./package.json');
+            if (tag !== `v${version}`) {
+              throw new Error(`Tag ${tag} does not match package version ${version}`);
+            }
+            try {
+              const { data } = await github.rest.repos.getReleaseByTag({
+                ...context.repo, tag,
+              });
+              return data.id;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            const { data } = await github.rest.repos.createRelease({
+              ...context.repo,
+              tag_name: tag,
+              name: `app ${tag}`,
+              generate_release_notes: true,
+            });
+            return data.id;
 
-        steps:
-            - uses: actions/checkout@v2
-            # 查询版本号（tag）
-            - name: Query version number
-              id: get_version
-              shell: bash
-              run: |
-                  echo "using version tag ${GITHUB_REF:10}"
-                  echo ::set-output name=version::"${GITHUB_REF:10}"
-
-            # 根据查询到的版本号创建 release
-            - name: Create Release
-              id: create_release
-              uses: actions/create-release@v1
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              with:
-                  tag_name: "${{ steps.get_version.outputs.VERSION }}"
-                  release_name: "app ${{ steps.get_version.outputs.VERSION }}"
-                  body: "See the assets to download this version and install."
-
-    # 编译 Tauri
-    build-tauri:
-        needs: create-release
-        strategy:
-            fail-fast: false
-            matrix:
-                platform: [macos-latest, ubuntu-latest, windows-latest]
-
-        runs-on: ${{ matrix.platform }}
-        steps:
-            - uses: actions/checkout@v2
-              with:
-                  persist-credentials: false
-
-            - name: Reconfigure git to use HTTP authentication
-              run: >
-                  git config --global url."https://github.com/".insteadOf
-                  ssh://git@github.com/
-
-            # 安装 Node.js
-            - name: Setup node
-              uses: actions/setup-node@v1
-              with:
-                  node-version: 16
-
-            # 安装 Rust
-            - name: Install Rust stable
-              uses: actions-rs/toolchain@v1
-              with:
-                  toolchain: stable
-
-            # 使用 Rust 缓存，加快安装速度
-            - uses: Swatinem/rust-cache@v1
-
-            - name: install dependencies (ubuntu only)
-              if: matrix.platform == 'ubuntu-latest'
-              run: |
-                  sudo apt-get update
-                  sudo apt-get install -y libgtk-3-dev webkit2gtk-4.0 libappindicator3-dev librsvg2-dev patchelf
-
-            # 可选，如果需要将 Rust 编译为 wasm，则安装 wasm-pack
-            - uses: jetli/wasm-pack-action@v0.3.0
-              with:
-                  # Optional version of wasm-pack to install(eg. 'v0.9.1', 'latest')
-                  version: v0.9.1
-
-            # 可选，如果需要使用 rsw 构建 wasm，则安装 rsw
-            # - name: Install rsw
-            #   run: cargo install rsw
-
-            # 获取 yarn 缓存路径
-            - name: Get yarn cache directory path
-              id: yarn-cache-dir-path
-              run: echo "::set-output name=dir::$(yarn config get cacheFolder)"
-
-            # 使用 yarn 缓存
-            - name: Yarn cache
-              uses: actions/cache@v2
-              id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
-              with:
-                  path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
-                  key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
-                  restore-keys: |
-                      ${{ runner.os }}-yarn-
-
-            # 安装依赖执行构建，以及推送 github release
-            - name: Install app dependencies and build it
-              run: yarn && yarn build
-            - uses: tauri-apps/tauri-action@v0
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              with:
-                  releaseId: ${{ needs.create-release.outputs.RELEASE_UPLOAD_ID }}
+  build-tauri:
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            args: --target aarch64-apple-darwin -- --locked
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+            args: --target x86_64-apple-darwin -- --locked
+          - platform: ubuntu-22.04
+            args: -- --locked
+          - platform: windows-latest
+            args: -- --locked
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Use HTTPS for GitHub dependencies
+        run: git config --global url."https://github.com/".insteadOf ssh://git@github.com/
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target || '' }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: ${{ matrix.target || matrix.platform }}
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Test frontend
+        run: npm test
+      - name: Test backend
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+      - name: Build and upload installers
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          releaseId: ${{ needs.create-release.outputs.release-id }}
+          tauriScript: npm run tauri
+          args: ${{ matrix.args }}
