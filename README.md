@@ -1,53 +1,96 @@
-# 抢票软件（大麦）
+# Tickets
 
-一个基于 tauri + rust + vue 构建的抢票软件，全部调用大麦的接口。目前只支持大麦平台（默认）。
+基于 **Tauri + Rust + Vue 3** 的多平台购票工作台，支持 **大麦 H5** 与 **Bilibili 会员购**。
 
-本项目只用来学习 tauri、rust 等，切勿进行盈利，所造成的后果与本人无关。
+左侧切换平台，分别填写账号与活动信息。等待开售、购票重试与取消由 Rust 后端管理，切换页面不影响已启动的任务。
+
+本项目用于技术学习与交流，请合理使用，勿用于商业代抢。
+
+## 功能
+
+- **多平台工作台**：大麦、Bilibili、任务与记录、设置与帮助；各平台表单与任务独立。
+- **活动与票档**：解析官方链接或项目编号，选择场次、票档、观演人及购买数量；会员购支持按活动日期加载场次、联系人与配送地址。
+- **后端定时**：预约开售、限制尝试次数、控制重试间隔、随时停止；每个平台同时最多运行一个任务。
+- **自动校时**：优先请求淘宝公共时间接口，失败时使用 Bilibili 时间接口；多次采样选取往返耗时最小的结果，自动填写修正值并显示估计误差。
+- **订单处理**：凭证失效后重新准备订单；验证、限购、重复订单等情况停止并提示处理。下单响应无法确认时提示检查官方订单，避免盲目重试。
+- **记录与设置**：实时任务状态、成功提示音、SQLite 操作日志、按平台/日期/关键词筛选、导出、全局代理和运行标识。
 
 ## 下载
 
-[点击查看下载页面](https://github.com/shiyutim/tickets/releases)，下载对应的版本即可。
+前往 [Releases](https://github.com/shiyutim/tickets/releases) 选择对应系统的安装包。新功能以当前源码为准，已发布安装包可能尚未包含。
 
-## 编译（需要 rust、node 环境）：
+## 本地运行
 
-1. 安装 rust `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh` [rust 官网](https://www.rust-lang.org/tools/install) (输入 `rustc -V` 显示版本号，则表示安装成功)
-2. 安装 node [node 官网](https://nodejs.org/en) (输入 ` node -v` 显示版本号，则表示安装成功)
-3. 运行 `yarn install` 安装依赖
-4. 运行 `yarn tauri dev` 启动本地项目（如果windows系统，可能需要准备 tauri 需要的[环境](https://tauri.app/zh-cn/v1/guides/getting-started/prerequisites/)），使用**编译的app**来进行调试。
-4. 运行 `yarn tauri build` 打包程序。生成的程序在 src-tauri/target/release 下。
+需要 Node.js 18+、当前稳定版 Rust，以及 [Tauri 1 系统依赖](https://v1.tauri.app/v1/guides/getting-started/prerequisites)。
+
+```bash
+npm ci
+npm run tauri dev
+```
+
+仅预览界面：
+
+```bash
+npm run dev
+```
+
+浏览器预览不执行平台请求、数据库操作或购票任务，这些功能需要在桌面应用中使用。
+
+构建：
+
+```bash
+npm run build
+npm run tauri build
+```
+
+安装包位于 `src-tauri/target/release/bundle/`。
 
 ## 使用
 
--   填入 cookie
+1. 在左侧选择大麦或 Bilibili。用浏览器登录对应平台，在活动页面的开发者工具 Network 中找到接口请求，复制 Request Headers 中的完整 Cookie。大麦使用 H5 页面，Cookie 需要包含 `_m_h5_tk`；Bilibili 需要包含 `SESSDATA` 和 `bili_jct`。
+2. 粘贴官方活动链接或直接填写项目编号，点击 **加载活动**。
+3. 选择场次与票档，再选择与购买张数一致的观演人。Bilibili 还需填写联系人、电话；需配送的票档选择收货地址。观演人与地址需预先在官方平台添加。
+4. 按需启用 **定时开始**。开售时间会自动带入，日期输入统一按**北京时间（UTC+8）**解释。
+5. 设置尝试次数与重试间隔，点击 **开始购票** 或 **创建预约任务**。可切换平台继续操作，在平台页或任务页停止任务。
+6. 订单创建成功后点击 **前往支付**，在官方订单页面确认并支付。
 
-F12 打开控制台，在 network 下，找到对应的 http 请求，然后找到 cookie 选项，全部复制填入即可（注意要复制全）。
-![商品](./images/product.jpg)
+大麦链接示例：`https://m.damai.cn/damai/detail/item.html?itemId=720545258599`
 
--   输入 itemId
+会员购链接支持 `show.bilibili.com/platform/detail.html?id=...` 与 `mall.bilibili.com/neul-next/ticket-renovation/detail.html?id=...`。
 
-商品链接：https://m.damai.cn/damai/detail/item.html?itemId=720545258599&spm=a2o71.search.list.ditem_0 ，720545258599 即为 itemId
+### 校时与定时
 
--   选择对应的票档，然后点击抢票即可
+修正值定义为：**服务器时间 − 本机时间**。例如修正值为 `+150 ms`，表示本机慢了约 150 毫秒。
 
-## 注意事项
+后端等待时长为 `目标开售时间 − 修正值 − 当前本机时间`，前端倒计时仅用于显示。已启动任务使用创建时的修正值，后续校时不会改变其触发时间。
 
-1. 目前基于 H5 平台开发的。如果 H5 平台不支持，那么本 app 也不支持
-2. 提示 session 失效等，需要更换 cookie（不一定需要重新登录，重新进入大麦页面获取即可）
-3. 尽量不要多次重复尝试下订单，因为阿里系产品有风控，可能会限制账号或 ip 等。如果多次尝试导致出现账号无法登录的情况，切换个浏览器即可。
-4. **不支持选座**
-5. FAIL_SYS_USER_VALIDATE 类似的提示可能当前已经被限制，可能需要重新登录或者切换个浏览器。
+- 公共时间接口为 `api.m.taobao.com/rest/api3.do?api=mtop.common.getTimestamp` 与 `api.bilibili.com/x/report/click/now`，校时请求不携带账号 Cookie。
+- Bilibili 时间接口只有秒级精度，界面会显示相应误差，不保证毫秒级准确。
+- 校时失败保留当前修正值，允许稍后重试或手动填写。
+- 保持应用运行、电脑唤醒和网络畅通；退出应用会停止任务，重启后不会自动恢复下单。
 
+### 本地数据
 
-## 流程图
+表单与设置保存在本机。默认不保存 Cookie，勾选 **在本机记住 Cookie** 后才会明文持久化；取消勾选会移除该平台已保存的 Cookie。切换平台仍会保留本次运行中的填写内容。
 
-![流程图](./images/tickets-process.png)
+完整观演人信息只用于当前运行，不写入日志或任务历史。SQLite 继续使用原有 `SETTINGS`、`LOG` / `运行标识_LOG` 表，日志写入使用参数绑定。开发环境与正式环境分别使用 `sql-test.db` 与 `sql.db`。
+
+## 支持范围
+
+- 大麦以 H5 接口支持的活动为准，会员购优先使用新商品详情接口，兼容旧详情接口。
+- 当前支持无需选座的票档；支付在官方页面完成。
+- 登录过期或需要人机验证时，先在官方页面处理，再重新加载活动并启动任务。
+- 平台接口可能变化。构建和模拟测试不能替代真实账号、实际开售时的验证，也不保证一定购票成功。
 
 ## TODO
 
-1. 定时逻辑从前端移动到后端
-2. 通过公共服务器时间接口，自动填写**修正时间**
+## 更新记录
 
-## 更新日志
-- 2024-05-08 
-    1. 重新更新以支持购票
-    2. 支付成功后，可直接点击进入大麦官方订单页进行支付
+- 新增 Bilibili 会员购，更新商品详情、订单准备与 `createV2` 链路，支持有效订单编号确认和官方支付入口。
+- 重做工作台界面，新增独立平台标签、任务记录页与设置帮助页。
+- 修复大麦多场次选择、观演人数统计和订单层级组装；移除旧前端购票循环。
+- 保留原有 SQLite 日志与运行标识配置，修复带引号内容的日志写入。
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=shiyutim/tickets&type=Date)](https://star-history.com/#shiyutim/tickets&Date)

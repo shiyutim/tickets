@@ -1,117 +1,36 @@
 import Database from "tauri-plugin-sql-api";
 import { appConfigDir } from "@tauri-apps/api/path";
 
-// sql文件名
-export const dbName = import.meta.env.DEV ? `sql-test.db` : `sql.db`;
-let db;
-// 日志表名称
-// 根据 appid，动态更改
+export const dbName = import.meta.env.DEV ? "sql-test.db" : "sql.db";
 export let logTableName = "LOG";
-// 全局setting表名称
 export const settingTableName = "SETTINGS";
+let database;
 
-// 获取 appid
-export const getAppId = async () => {
-    const res = await selectAll(settingTableName);
-    if(Array.isArray(res) && res.length) {
-        return res[0].appid
-    }
-
-    return ''
+function identifier(name) {
+    if (!/^[a-zA-Z0-9_-]+$/.test(name)) throw new Error("无效的数据库标识符");
+    return `"${name}"`;
 }
 
-// 修改log 表名
-// 表名通过数据库中取
-export const changeLogTableName = async () => {
-    await initDb();
-    // 设置唯一表名
-    const appId = await getAppId()
-    if(appId) {
-        logTableName = `${appId}_LOG`;
-    }
-};
-
-export const dbPath = async () => {
-    return `sqlite:${await appConfigDir()}${dbName}`
+export const dbPath = async () => `sqlite:${await appConfigDir()}${dbName}`;
+export async function initDb() {
+    if (!database) database = dbPath().then(path => Database.load(path)).catch(error => { database = null; throw error; });
+    return database;
 }
-
-// 初始化数据库
-export const initDb = async () => {
-    if (db) return;
-    db = await Database.load(await dbPath());
-};
-
-// 初始化 日志表
-export const initLogTable = async () => {
-    await initDb();
-    await db.execute(
-        `CREATE TABLE IF NOT EXISTS ${logTableName} (id INTEGER PRIMARY KEY AUTOINCREMENT, time TIMESTAMP, type TEXT, status INTEGER, title TEXT, msg TEXT);`
-    );
-};
-
-// 初始化 设置表
-export const initSettingTable = async () => {
-    await initDb();
-    await db.execute(
-        `CREATE TABLE IF NOT EXISTS ${settingTableName} (proxy TEXT, appid_list TEXT, appid TEXT)`
-    );
-};
-
-// 添加逻辑
-export const insert = async (tableName, params) => {
-    const [retKeys, retValues] = getSqlInsetQuery(params);
-
-    return await db.execute(
-        `INSERT INTO ${tableName} (${retKeys.join()}) VALUES (${retValues.join()});`
-    );
-};
-
-function getSqlInsetQuery(object) {
-    const retKeys = [];
-    const retValues = [];
-
-    for (const [key, values] of Object.entries(object)) {
-        retKeys.push(key);
-        retValues.push(
-            typeof values === "object"
-                ? `'${JSON.stringify(values)}'`
-                : JSON.stringify(values)
-        );
-    }
-
-    return [retKeys, retValues];
+export async function execute(query, values = []) { return (await initDb()).execute(query, values); }
+export async function select(query, values = []) { return (await initDb()).select(query, values); }
+export const selectAll = table => select(`SELECT * FROM ${identifier(table)}`);
+export async function getAppId() { return (await selectAll(settingTableName))[0]?.appid || ""; }
+export async function changeLogTableName() {
+    const appId = await getAppId();
+    logTableName = appId && /^[a-zA-Z0-9_-]+$/.test(appId) ? `${appId}_LOG` : "LOG";
 }
-
-function getSqlUpdateQuery(object) {
-    let result = [];
-    for (const [key, values] of Object.entries(object)) {
-        let current = `${key}=${
-            typeof values === "object"
-                ? `'${JSON.stringify(values)}'`
-                : JSON.stringify(values)
-        }`;
-
-        result.push(current);
-    }
-
-    return result.join();
+export const initSettingTable = () => execute(`CREATE TABLE IF NOT EXISTS SETTINGS (proxy TEXT, appid_list TEXT, appid TEXT)`);
+export const initLogTable = () => execute(`CREATE TABLE IF NOT EXISTS ${identifier(logTableName)} (id INTEGER PRIMARY KEY AUTOINCREMENT, time TIMESTAMP, type TEXT, status TEXT, title TEXT, msg TEXT)`);
+const sqlValue = value => value !== null && typeof value === "object" ? JSON.stringify(value) : value;
+export function insert(table, values) {
+    const keys = Object.keys(values);
+    return execute(`INSERT INTO ${identifier(table)} (${keys.map(identifier).join(",")}) VALUES (${keys.map(() => "?").join(",")})`, Object.values(values).map(sqlValue));
 }
-
-// !!!默认更新所有
-export const update = async (tableName, params) => {
-    return execute(`UPDATE ${tableName} SET ${getSqlUpdateQuery(params)}`);
-};
-
-export const execute = async (query) => {
-    return await db.execute(query);
-};
-
-// 获取指定
-export const select = async (query) => {
-    return await db.select(query);
-};
-
-// 获取所有
-export const selectAll = async (tableName) => {
-    return select(`SELECT * FROM ${tableName}`);
-};
+export function update(table, values) {
+    return execute(`UPDATE ${identifier(table)} SET ${Object.keys(values).map(key => `${identifier(key)} = ?`).join(",")}`, Object.values(values).map(sqlValue));
+}

@@ -1,293 +1,50 @@
 <script setup>
-import { onMounted, ref, reactive } from "vue";
-import Header from "./components/common/Header.vue";
-import { routes } from "./router";
-import {
-    initLogTable,
-    insert,
-    selectAll,
-    settingTableName,
-    changeLogTableName,
-    initSettingTable,
-    update,
-} from "./sql";
-import { IconSettings } from "@arco-design/web-vue/es/icon";
-import { createAppId } from "../utils/common";
+import { onMounted } from "vue";
+import { useRoute } from "vue-router";
 import { Message } from "@arco-design/web-vue";
-import Log from "../utils/common/log";
-import { invoke } from "@tauri-apps/api";
-import Update from "./components/common/Update.vue";
-import Tip from "./components/common/Tip.vue";
-
-const log = new Log();
-
-onMounted(async () => {
-    // 初始化设置表
-    await initSettingTable();
-    // 初始化表名（根据appid，如果不存在，则为默认`LOG`）
-    await changeLogTableName();
-
-    try {
-        // 初始化日志表
-        await initLogTable();
-    } catch (e) {
-        console.log("初始化表失败", e);
-    }
-
-    // 初始化配置
-    initSetting();
-
-    // 每次启动app，检查版本号
-    checkVersion();
-});
-
-const updateRef = ref(null);
-async function checkVersion() {
-    try {
-        let res = await fetch(
-            "https://api.github.com/repos/shiyutim/tickets/releases",
-            {
-                method: "GET",
-            }
-        );
-
-        let json = await res.json();
-        if (Array.isArray(json) && json.length) {
-            let tag_name = json[0].tag_name;
-            let version = tag_name.replace("v", "");
-            if (version !== appVersion) {
-                updateRef.value.showUpdate();
-            }
-        }
-
-        // TODO
-        // let res = await invoke("get_repo_version");
-        // console.log("resaaaaa", res, JSON.parse(res));
-    } catch (e) {
-        console.log("e", e);
-    }
-}
-
-async function handleOk() {
-    const params = {
-        proxy: form.proxy,
-        appid_list: form.appid_list,
-        appid: form.appid,
-    };
-
-    try {
-        // 如果不存在，则插入，否则更新
-        const fun = await getLastFun();
-        const res = fun(settingTableName, params);
-
-        if (res) {
-            Message.success("保存成功");
-            log.save(
-                log.getTemplate(
-                    "setting",
-                    "设置保存成功",
-                    "success",
-                    `proxy: ${form.proxy}; appid: ${form.appid}`
-                )
-            );
-            // 每次保存成功，则重新设置log表和初始化
-            await changeLogTableName();
-            await initLogTable();
-        }
-    } catch (e) {
-        Message.error(e.toString());
-    }
-}
-
-const visible = ref(false);
-function setting() {
-    visible.value = true;
-}
-
-const form = reactive({
-    proxy: "",
-    appid_list: [],
-    appid: "",
-});
-
-const descIpt = ref("");
-
-async function initSetting() {
-    const res = await getSetting();
-    if (!res) return;
-
-    form.proxy = res.proxy;
-    form.appid_list = res.appid_list ? JSON.parse(res.appid_list) : [];
-    form.appid = res.appid;
-}
-
-async function getSetting() {
-    try {
-        const res = await selectAll(settingTableName);
-        if (Array.isArray(res) && res.length) {
-            return res[0];
-        }
-    } catch (e) {
-        console.log(e);
-    }
-
-    return null;
-}
-
-const createBtnLoading = ref(false);
-async function createId() {
-    createBtnLoading.value = true;
-    try {
-        const current = {
-            id: createAppId(),
-            desc: descIpt.value,
-        };
-
-        const setting = (await getSetting()) || {};
-
-        let list = setting.appid_list ? JSON.parse(setting.appid_list) : [];
-        list.push(current);
-
-        const fun = await getLastFun();
-        let res = fun(settingTableName, {
-            proxy: setting.proxy || "",
-            appid_list: list,
-            appid: setting.appid || "",
-        });
-
-        createBtnLoading.value = false;
-        res && Message.success("创建成功！");
-
-        descIpt.value = "";
-        initSetting();
-    } catch (e) {
-        Message.error(e.toString());
-    } finally {
-        createBtnLoading.value = false;
-    }
-}
-
-// 如果存在数据，则更新，否则添加
-async function getLastFun() {
-    const res = await getSetting();
-    return res ? update : insert;
-}
+import UiIcon from "./components/common/UiIcon.vue";
+import { activeTasks, runtime, desktop, initializeRuntime, errorText, openExternal } from "./services/runtime";
+const route = useRoute();
+const version = appVersion;
+const navigation = [
+    { path: "/dm", label: "大麦", detail: "现场演出", icon: "ticket", platform: "dm" },
+    { path: "/bilibili", label: "Bilibili", detail: "会员购", icon: "bilibili", platform: "bilibili" },
+];
+onMounted(() => initializeRuntime().catch(error => Message.error(errorText(error))));
 </script>
 
 <template>
-    <div class="app-container">
-        <div class="nav-wrap">
-            <a-menu
-                :default-selected-keys="['dm']"
-                :style="{ width: '200px', height: '100%' }"
-            >
-                <router-link
-                    v-for="item in routes.filter(
-                        (item) => item.meta && !item.meta.hideInMenu
-                    )"
-                    :key="item.name"
-                    :to="item.path"
-                >
-                    <a-menu-item :key="item.name">
-                        {{ item.meta.name }}
-                    </a-menu-item>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <router-link to="/dm" class="brand" aria-label="Tickets 首页">
+                <span class="brand-icon"><UiIcon name="ticket" /></span>
+                <span>tickets<span class="brand-dot">.</span><small>每一场期待，都值得抵达</small></span>
+            </router-link>
+            <div class="nav-label">购票工作台</div>
+            <nav class="platform-nav" aria-label="购票平台">
+                <router-link v-for="item in navigation" :key="item.path" :to="item.path" class="nav-item" :class="{ selected: route.path === item.path, pink: item.platform === 'bilibili' }">
+                    <UiIcon :name="item.icon" />
+                    <span>{{ item.label }}<small>{{ item.detail }}</small></span>
+                    <span v-if="activeTasks.some(task => task.platform === item.platform)" class="live-dot" aria-label="任务运行中"></span>
+                    <UiIcon v-else name="chevron" class="nav-chevron" />
                 </router-link>
-            </a-menu>
-
-            <div class="setting-btn" @click="setting">
-                <icon-settings style="font-size: 35px" />
+            </nav>
+            <div class="nav-divider"></div>
+            <router-link to="/activity" class="nav-item" :class="{ selected: route.path === '/activity' }"><UiIcon name="activity" /><span>任务与记录</span><span class="nav-count" v-if="activeTasks.length">{{ activeTasks.length }}</span></router-link>
+            <div class="sidebar-bottom">
+                <div class="sidebar-note"><span class="live-dot" :class="{ muted: !activeTasks.length }"></span>{{ activeTasks.length ? `${activeTasks.length} 个任务运行中` : "准备好下一场相遇" }}<small>保持应用运行，等待好消息。</small></div>
+                <router-link to="/settings" class="nav-item" :class="{ selected: route.path === '/settings' }"><UiIcon name="settings" /><span>设置与帮助</span></router-link>
+                <button class="sidebar-footer" @click="openExternal('https://github.com/shiyutim/tickets')"><UiIcon name="github" /><span>开源共建</span><span>v{{ version }}</span></button>
             </div>
-        </div>
-
-        <div class="right">
-            <Header></Header>
-            <Tip
-                style="margin-bottom: 5px"
-                :text="`本软件目的是为了学习交流，严禁用于商业用途。该软件已在 Github 上开源，任何用于商业用途产生的后果与作者无关`"
-            />
-            <router-view></router-view>
-        </div>
-
-        <Update ref="updateRef" />
-
-        <a-modal v-model:visible="visible" @ok="handleOk" width="620px">
-            <template #title> 全局设置 </template>
-            <div>
-                <a-form :model="form" :style="{ width: '600px' }">
-                    <a-form-item
-                        field="proxy"
-                        tooltip="本软件发送请求时使用的代理"
-                        label="代理"
-                    >
-                        <a-input
-                            v-model="form.proxy"
-                            :style="{ width: '320px', margin: '0 10px 0 0' }"
-                            placeholder="https://127.0.0.1:443"
-                            allow-clear
-                        />
-                    </a-form-item>
-
-                    <a-form-item field="appId" label="appId">
-                        <template #extra>
-                            <div>用来标记此次运行app的唯一标识</div>
-                        </template>
-                        <a-select
-                            :style="{ width: '320px' }"
-                            placeholder="请选择appId"
-                            v-model="form.appid"
-                        >
-                            <a-option
-                                :value="item.id"
-                                :key="item.id"
-                                v-for="item in form.appid_list"
-                                >{{ item.id }}（{{ item.desc }}）</a-option
-                            >
-                        </a-select>
-                    </a-form-item>
-                    <a-form-item field="desc">
-                        <a-input
-                            style="width: 200px; margin-right: 10px"
-                            v-model="descIpt"
-                            placeholder="请填入备注"
-                        />
-                        <template #extra> 生成id的描述 </template>
-                        <a-button :loading="createBtnLoading" @click="createId"
-                            >生成id</a-button
-                        >
-                    </a-form-item>
-                </a-form>
+        </aside>
+        <main class="main-shell">
+            <header class="topbar"><span>工作空间 <UiIcon name="chevron" /> <strong>{{ route.meta.title }}</strong></span><span class="local-badge"><span class="live-dot"></span>{{ desktop ? '本地运行' : '界面预览' }}</span></header>
+            <div class="main-scroll">
+                <div v-if="!desktop" class="notice preview-notice"><UiIcon name="info" />当前为浏览器预览。连接账号和购票功能请通过 npm run tauri dev 启动桌面应用。</div>
+                <div v-if="runtime.storageError" class="notice warning">{{ runtime.storageError }}</div>
+                <router-view v-slot="{ Component }"><keep-alive><component :is="Component" :key="route.name" /></keep-alive></router-view>
+                <footer class="page-footer">Tickets · 让期待更从容<span>开源学习项目 · 请合理使用</span></footer>
             </div>
-        </a-modal>
+        </main>
     </div>
 </template>
-
-<style scoped lang="scss">
-.app-container {
-    display: flex;
-    flex-flow: row nowrap;
-    height: 100vh;
-    overflow: hidden;
-}
-.right {
-    width: 100%;
-    height: 100%;
-    overflow: auto;
-    flex: 1;
-}
-.nav-wrap {
-    width: 200px;
-    height: 100%;
-    position: relative;
-
-    box-sizing: border-box;
-    background-color: var(--color-neutral-2);
-}
-
-.setting-btn {
-    position: absolute;
-    bottom: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    cursor: pointer;
-}
-</style>

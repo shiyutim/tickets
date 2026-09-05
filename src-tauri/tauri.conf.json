@@ -1,7 +1,7 @@
 {
   "build": {
-    "beforeDevCommand": "yarn dev",
-    "beforeBuildCommand": "yarn build",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
     "devPath": "http://localhost:1420",
     "distDir": "../dist",
     "withGlobalTauri": true
@@ -33,9 +33,11 @@
       {
         "fullscreen": false,
         "resizable": true,
-        "title": "tickets",
-        "width": 1000,
-        "height": 800
+        "title": "Tickets · 购票工作台",
+        "width": 1280,
+        "height": 900,
+        "minWidth": 960,
+        "minHeight": 680
       }
     ]
   }
