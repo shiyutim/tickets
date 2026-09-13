@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to rebuild for Windows (for example, v0.6.1)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -13,18 +19,33 @@ jobs:
     runs-on: ubuntu-22.04
     outputs:
       release-id: ${{ steps.release.outputs.result }}
+      source-ref: ${{ steps.release.outputs.source-ref }}
+      matrix: ${{ steps.release.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.ref }}
       - name: Create or reuse release
         id: release
         uses: actions/github-script@v7
         with:
           script: |
-            const tag = context.ref.replace('refs/tags/', '');
+            const manual = context.eventName === 'workflow_dispatch';
+            const tag = manual ? context.payload.inputs.tag : context.ref.replace('refs/tags/', '');
             const { version } = require('./package.json');
             if (tag !== `v${version}`) {
               throw new Error(`Tag ${tag} does not match package version ${version}`);
             }
+            const platforms = [
+              { platform: 'macos-latest', target: 'aarch64-apple-darwin', args: '--target aarch64-apple-darwin -- --locked' },
+              { platform: 'macos-latest', target: 'x86_64-apple-darwin', args: '--target x86_64-apple-darwin -- --locked' },
+              { platform: 'ubuntu-22.04', args: '-- --locked' },
+              { platform: 'windows-latest', args: '-- --locked' },
+            ];
+            core.setOutput('source-ref', `refs/tags/${tag}`);
+            core.setOutput('matrix', JSON.stringify({
+              include: manual ? platforms.filter(item => item.platform === 'windows-latest') : platforms,
+            }));
             try {
               const { data } = await github.rest.repos.getReleaseByTag({
                 ...context.repo, tag,
@@ -32,6 +53,7 @@ jobs:
               return data.id;
             } catch (error) {
               if (error.status !== 404) throw error;
+              if (manual) throw new Error(`Release ${tag} must already exist for a Windows rebuild`);
             }
             const { data } = await github.rest.repos.createRelease({
               ...context.repo,
@@ -45,22 +67,15 @@ jobs:
     needs: create-release
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - platform: macos-latest
-            target: aarch64-apple-darwin
-            args: --target aarch64-apple-darwin -- --locked
-          - platform: macos-latest
-            target: x86_64-apple-darwin
-            args: --target x86_64-apple-darwin -- --locked
-          - platform: ubuntu-22.04
-            args: -- --locked
-          - platform: windows-latest
-            args: -- --locked
+      matrix: ${{ fromJSON(needs.create-release.outputs.matrix) }}
     runs-on: ${{ matrix.platform }}
     steps:
+      - name: Preserve repository line endings on Windows
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
         with:
+          ref: ${{ needs.create-release.outputs.source-ref }}
           persist-credentials: false
       - name: Use HTTPS for GitHub dependencies
         run: git config --global url."https://github.com/".insteadOf ssh://git@github.com/

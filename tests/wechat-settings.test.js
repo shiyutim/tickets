@@ -17,9 +17,8 @@ function deferred() {
     return { promise, resolve };
 }
 
-function settingsPage(state, call, onSync = () => {}) {
-    const source = readFileSync(new URL("../src/components/WechatSettings.vue", import.meta.url), "utf8");
-    const script = source.split("<script setup>")[1].split("</script>")[0].replace(/^import .*;\n/gm, "");
+function settingsPage(state, call, onSync = () => {}, source = readFileSync(new URL("../src/components/WechatSettings.vue", import.meta.url), "utf8")) {
+    const script = source.split("<script setup>")[1].split("</script>")[0].replace(/^import .*;\r?\n/gm, "");
     const noop = () => {};
     const disk = storage();
     const dependencies = {
@@ -111,7 +110,7 @@ test("failed test deliveries do not change the saved reminder preference", async
     }
 });
 
-test("a task reads the confirmed binding when leaving settings before the status refresh finishes", async () => {
+for (const lineEnding of ["LF", "CRLF"]) test(`a task reads the confirmed binding when leaving settings before the status refresh finishes (${lineEnding})`, async () => {
     const state = settings(true);
     const before = structuredClone(state);
     const confirmed = { status: "ready", accountId: "new-bot", target: "new-user@im.wechat" };
@@ -130,7 +129,9 @@ test("a task reads the confirmed binding when leaving settings before the status
         current = confirmed;
         return { sessionId: "qr", status: "confirmed", qrContent: "" };
     };
-    const page = settingsPage(state, call, () => initialSync.resolve());
+    const source = readFileSync(new URL("../src/components/WechatSettings.vue", import.meta.url), "utf8")
+        .replace(/\r?\n/g, lineEnding === "CRLF" ? "\r\n" : "\n");
+    const page = settingsPage(state, call, () => initialSync.resolve(), source);
     page.activate();
     await initialSync.promise;
     page.session.value = { sessionId: "qr", status: "wait", qrContent: "qr-content", expiresAt: Date.now() + 30_000 };
