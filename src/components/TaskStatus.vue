@@ -18,13 +18,14 @@ async function stop() { stopping.value = true; await stopTask(props.task.id); st
 </script>
 <template>
     <section class="task-status" :class="task.status" aria-live="polite">
-        <div class="task-status-head"><span class="status-pill" :class="task.status"><span class="live-dot"></span>{{ statusLabels[task.status] }}</span><span class="muted-text">尝试 {{ task.attempt }} / {{ task.maxAttempts }}</span></div>
+        <div class="task-status-head"><span class="status-pill" :class="task.status"><span class="live-dot"></span>{{ statusLabels[task.status] }}</span><span class="muted-text">{{ task.mode === 'monitor' ? '查询' : '尝试' }} {{ task.attempt }} / {{ task.maxAttempts || '不限' }}</span></div>
         <div v-if="task.status === 'waiting'" class="task-countdown">{{ remaining }}</div>
         <p>{{ task.message }}</p>
         <small v-if="task.status === 'waiting'">{{ formatTime(task.startAt) }} · 北京时间</small>
         <div class="task-status-actions">
             <button v-if="isActive(task)" class="button danger small" :disabled="stopping" @click="stop"><UiIcon name="pause" />{{ stopping ? '正在停止…' : '停止任务' }}</button>
             <button v-if="task.orderUrl" class="button primary small" @click="openExternal(task.orderUrl)">{{ task.status === 'succeeded' ? '前往支付' : '前往官方页面' }}<UiIcon name="launch" /></button>
+            <router-link v-if="['disabled', 'failed', 'unknown'].includes(task.notificationStatus)" class="text-button" to="/settings">微信通知设置 →</router-link>
         </div>
     </section>
 </template>

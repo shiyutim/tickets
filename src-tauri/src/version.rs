@@ -1,42 +1,21 @@
-use reqwest::{header, Client};
-
-#[tokio::main]
-async fn get_repo_release() -> Result<serde_json::Value, Box<dyn std::error::Error>> {
-    let client = Client::builder().build()?;
-    let mut headers = header::HeaderMap::new();
-    headers.insert("user-agent", "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Mobile Safari/537.36".parse().unwrap());
-    let res = client
-        .get("https://api.github.com/repos/shiyutim/tickets/releases")
-        .headers(headers)
-        .send()
-        .await?
-        .json::<serde_json::Value>()
-        .await?;
-
-    Ok(res)
-}
+use std::time::Duration;
 
 #[tauri::command]
-pub fn get_repo_version() -> String {
-    let res = get_repo_release();
-    match res {
-        Ok(s) => {
-            if let Some(arr) = s.as_array() {
-                let first = arr.get(0);
-                match first {
-                    Some(f) => {
-                        let tag_name = f["tag_name"].to_string();
-                        tag_name.replace("v", "")
-                    }
-                    None => String::new(),
-                }
-            } else {
-                String::new()
-            }
-        }
-        Err(e) => {
-            println!("error : {}", e);
-            String::new()
-        }
+pub async fn get_repo_release() -> Result<serde_json::Value, String> {
+    let client = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(5))
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|_| "无法初始化更新连接")?;
+    let release = crate::http::json(
+        client
+            .get("https://api.github.com/repos/shiyutim/tickets/releases/latest")
+            .header(reqwest::header::ACCEPT, "application/vnd.github+json"),
+    )
+    .await
+    .map_err(|error| format!("检查更新失败：{error}"))?;
+    if release["tag_name"].as_str().unwrap_or_default().is_empty() {
+        return Err("发布信息缺少版本号".into());
     }
+    Ok(release)
 }

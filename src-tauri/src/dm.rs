@@ -123,7 +123,11 @@ fn valid_id(id: &str) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn dm_project(account: Account, project_id: String) -> Result<Value, String> {
+pub async fn dm_project(
+    account: Account,
+    project_id: String,
+    allow_unavailable: Option<bool>,
+) -> Result<Value, String> {
     valid_id(&project_id)?;
     let api = Damai::new(&account)?;
     let data = result(
@@ -140,7 +144,9 @@ pub async fn dm_project(account: Account, project_id: String) -> Result<Value, S
     if !item.is_object() {
         return Err("未找到商品信息，请检查商品链接".into());
     }
-    if matches!(item["item"]["buyBtnStatus"].as_str(), Some("303" | "100")) {
+    if !allow_unavailable.unwrap_or(false)
+        && matches!(item["item"]["buyBtnStatus"].as_str(), Some("303" | "100"))
+    {
         return Err(format!(
             "{} {}",
             http::string(&item["item"]["buyBtnText"]),

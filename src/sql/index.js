@@ -1,5 +1,6 @@
 import Database from "tauri-plugin-sql-api";
 import { appConfigDir } from "@tauri-apps/api/path";
+import { logTableForAppId } from "./names.js";
 
 export const dbName = import.meta.env.DEV ? "sql-test.db" : "sql.db";
 export let logTableName = "LOG";
@@ -19,10 +20,8 @@ export async function initDb() {
 export async function execute(query, values = []) { return (await initDb()).execute(query, values); }
 export async function select(query, values = []) { return (await initDb()).select(query, values); }
 export const selectAll = table => select(`SELECT * FROM ${identifier(table)}`);
-export async function getAppId() { return (await selectAll(settingTableName))[0]?.appid || ""; }
-export async function changeLogTableName() {
-    const appId = await getAppId();
-    logTableName = appId && /^[a-zA-Z0-9_-]+$/.test(appId) ? `${appId}_LOG` : "LOG";
+export function changeLogTableName(appId) {
+    logTableName = logTableForAppId(appId);
 }
 export const initSettingTable = () => execute(`CREATE TABLE IF NOT EXISTS SETTINGS (proxy TEXT, appid_list TEXT, appid TEXT)`);
 export const initLogTable = () => execute(`CREATE TABLE IF NOT EXISTS ${identifier(logTableName)} (id INTEGER PRIMARY KEY AUTOINCREMENT, time TIMESTAMP, type TEXT, status TEXT, title TEXT, msg TEXT)`);

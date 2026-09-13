@@ -1,0 +1,9 @@
+[registries.crates-io]
+# 区分默认源与下方的 sparse 替代源，实际下载仍使用 sparse。
+protocol = "git"
+
+[source.crates-io]
+replace-with = "tickets-official"
+
+[source.tickets-official]
+registry = "sparse+https://index.crates.io/"

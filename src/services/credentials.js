@@ -41,11 +41,11 @@ export async function damaiCredentials() {
     throw new Error("大麦设备凭证尚未就绪，请稍后重试");
 }
 
-export function biliCredentials(projectId) {
+export function biliCredentials(projectId, userAgent = navigator.userAgent) {
     const elapsed = Math.min(65535, Math.max(0, Math.floor((Date.now() - openedAt) / 1000)));
     const dimensions = [window.scrollX, window.scrollY, window.innerWidth, window.innerHeight, window.outerWidth,
         window.outerHeight, window.screenX, window.screenY, screen.width, screen.height, screen.availWidth,
-        history.length, "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36".length,
+        history.length, userAgent.length,
         `https://mall.bilibili.com/neul-next/ticket-renovation/detail.html?id=${projectId}`.length,
         Math.round(10 * (window.devicePixelRatio || 1)), Date.now() % 256];
     const dimension = n => (dimensions[n % 16] + dimensions[n * 3 % 16] + 17 * n) & 255;

@@ -100,6 +100,33 @@ async fn project(client: &Client, project_id: i64) -> Result<Value, String> {
 }
 
 #[tauri::command]
+pub async fn bili_search(account: Account, keyword: String, page: u32) -> Result<Value, String> {
+    let keyword = keyword.trim();
+    if keyword.is_empty() {
+        return Err("请输入搜索关键词".into());
+    }
+    if page == 0 {
+        return Err("搜索页码必须从 1 开始".into());
+    }
+    data(
+        http::json(
+            http::client(&account, MALL)?
+                .get(format!("{SHOW}/api/ticket/search/list"))
+                .query(&[
+                    ("version", "133".to_string()),
+                    ("page", page.to_string()),
+                    ("pagesize", "20".to_string()),
+                    ("platform", "web".to_string()),
+                    ("keyword", keyword.to_string()),
+                    ("cityid", String::new()),
+                    ("location", String::new()),
+                ]),
+        )
+        .await?,
+    )
+}
+
+#[tauri::command]
 pub async fn bili_project(account: Account, project_id: i64) -> Result<Value, String> {
     if project_id <= 0 {
         return Err("请输入有效的项目编号".into());
@@ -140,20 +167,24 @@ pub async fn bili_addresses(account: Account) -> Result<Value, String> {
         .into())
 }
 
+async fn screens(client: &Client, project_id: i64, date: &str) -> Result<Value, String> {
+    data(
+        http::json(
+            client
+                .get(format!("{SHOW}/api/ticket/project/infoByDate"))
+                .query(&[("id", project_id.to_string()), ("date", date.to_string())]),
+        )
+        .await?,
+    )
+}
+
 #[tauri::command]
 pub async fn bili_screens(
     account: Account,
     project_id: i64,
     date: String,
 ) -> Result<Value, String> {
-    data(
-        http::json(
-            http::client(&account, SHOW)?
-                .get(format!("{SHOW}/api/ticket/project/infoByDate"))
-                .query(&[("id", project_id.to_string()), ("date", date)]),
-        )
-        .await?,
-    )
+    screens(&http::client(&account, SHOW)?, project_id, &date).await
 }
 
 #[derive(Deserialize)]
@@ -293,12 +324,7 @@ pub async fn run(context: &TaskContext) -> Result<Outcome, String> {
     let detail = if config.date.is_empty() {
         project(&client, config.project_id).await?
     } else {
-        bili_screens(
-            config.account.clone(),
-            config.project_id,
-            config.date.clone(),
-        )
-        .await?
+        screens(&client, config.project_id, &config.date).await?
     };
     let (screen, ticket) =
         selected_ticket(&detail, &config).ok_or("所选场次或票档已变化，请重新加载商品")?;
@@ -329,28 +355,21 @@ pub async fn run(context: &TaskContext) -> Result<Outcome, String> {
         ));
     }
     let csrf = http::cookie_value(&config.account.cookie, "bili_jct");
-    let device_id = format!(
-        "{:x}",
-        md5::compute(format!(
-            "{}{}",
-            http::cookie_value(&config.account.cookie, "buvid3"),
-            http::USER_AGENT
-        ))
-    );
     let mut prepared = Value::Null;
     let mut last_error = String::new();
     for attempt in 1..=context.request.max_attempts {
         if prepared["token"].as_str().unwrap_or_default().is_empty() {
             context.report("running", "正在准备订单", attempt, None);
-            let credentials = context.credentials().await?;
-            let response = http::json(client.post(format!("{SHOW}/api/ticket/order/prepare"))
+            let user_agent = http::user_agent();
+            let credentials = context.credentials_with_user_agent(&user_agent).await?;
+            let response = http::json_with_user_agent(client.post(format!("{SHOW}/api/ticket/order/prepare"))
                 .query(&[("project_id", config.project_id)])
                 .json(&json!({
                     "project_id": config.project_id, "screen_id": config.screen_id, "sku_id": config.sku_id,
                     "count": config.count, "order_type": 1, "buyer_info": config.buyers,
                     "ignoreRequestLimit": true, "ticket_agent": "", "newRisk": true,
                     "requestSource": "neul-next", "token": credentials["ctoken"], "csrf": csrf,
-                }))).await?;
+                })), &user_agent).await?;
             if code(&response) == 0 && !string(&response["data"]["token"]).is_empty() {
                 prepared = response["data"].clone();
             } else {
@@ -361,10 +380,19 @@ pub async fn run(context: &TaskContext) -> Result<Outcome, String> {
             }
         }
         if !prepared.is_null() {
-            let credentials = context.credentials().await?;
+            let user_agent = http::user_agent();
+            let credentials = context.credentials_with_user_agent(&user_agent).await?;
             let ptoken = string(&prepared["ptoken"]).replace('=', "");
+            let device_id = format!(
+                "{:x}",
+                md5::compute(format!(
+                    "{}{}",
+                    http::cookie_value(&config.account.cookie, "buvid3"),
+                    user_agent
+                ))
+            );
             context.report("running", "正在提交订单", attempt, None);
-            let response = http::json(client.post(format!("{SHOW}/api/ticket/order/createV2"))
+            let response = http::json_with_user_agent(client.post(format!("{SHOW}/api/ticket/order/createV2"))
                 .query(&[("project_id", config.project_id.to_string()), ("ptoken", ptoken.clone())])
                 .json(&json!({
                     "project_id": config.project_id, "screen_id": config.screen_id, "sku_id": config.sku_id,
@@ -375,7 +403,7 @@ pub async fn run(context: &TaskContext) -> Result<Outcome, String> {
                     "timestamp": clock::now_ms() + context.request.offset_ms, "device_id": device_id,
                     "again": 1, "newRisk": true, "requestSource": "neul-next", "csrf": csrf,
                     "orderCreateUrl": format!("{SHOW}/api/ticket/order/createV2"),
-                }))).await;
+                })), &user_agent).await;
             let response = match response {
                 Ok(value) => value,
                 Err(_) => {
@@ -464,6 +492,24 @@ pub async fn run(context: &TaskContext) -> Result<Outcome, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn search_rejects_invalid_input_before_creating_a_client() {
+        let account = Account {
+            cookie: String::new(),
+            proxy: String::new(),
+            subscription_id: String::new(),
+            subscription_node_id: String::new(),
+        };
+        assert_eq!(
+            bili_search(account.clone(), " \n\t　".into(), 1).await,
+            Err("请输入搜索关键词".into())
+        );
+        assert_eq!(
+            bili_search(account, "上海".into(), 0).await,
+            Err("搜索页码必须从 1 开始".into())
+        );
+    }
 
     #[test]
     fn success_requires_a_real_order_id() {

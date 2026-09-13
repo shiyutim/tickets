@@ -59,12 +59,13 @@ pub async fn sync_clock() -> Result<ClockSample, String> {
         for _ in 0..3 {
             let sent = now_ms();
             let timer = Instant::now();
-            let response = client
-                .get(url)
-                .query(&[("_", sent)])
-                .header("Cache-Control", "no-cache, no-store")
-                .send()
-                .await;
+            let response = crate::http::send(
+                client
+                    .get(url)
+                    .query(&[("_", sent)])
+                    .header("Cache-Control", "no-cache, no-store"),
+            )
+            .await;
             if response.is_err() && samples.is_empty() {
                 break;
             }
