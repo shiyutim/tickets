@@ -4719,7 +4719,7 @@ dependencies = [
 
 [[package]]
 name = "tickets"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "base64 0.21.2",
  "md5",
